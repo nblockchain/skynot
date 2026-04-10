@@ -47,7 +47,7 @@ async function askQuestion(query: string): Promise<string> {
 async function runSudo(command: string, sudoPassword?: string): Promise<void> {
   // Use -S to read password from stdin if provided
   const fullCmd = sudoPassword ? `echo '${sudoPassword.replace(/'/g, `'\\''`)}' | sudo -S ${command}` : `sudo ${command}`;
-  await execAsync(fullCmd, { stdio: 'inherit' });
+  await execAsync(fullCmd);
 }
 
 async function userExists(username: string): Promise<boolean> {
@@ -150,7 +150,7 @@ async function launchAgent(): Promise<void> {
   console.log('Launching pi-coding-agent...');
   try {
     const installDir = getPiInstallDir();
-    await execAsync(`sudo -u pi bash -c 'cd ${installDir} && npx pi-coding-agent'`, { stdio: 'inherit' });
+    await execAsync(`sudo -u pi bash -c 'cd ${installDir} && npx pi-coding-agent'`);
   } catch (e) {
     const installDir = getPiInstallDir();
     const password = await askQuestion('Enter sudo password (required to launch agent): ');
