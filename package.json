@@ -1,6 +1,6 @@
 {
   "name": "skynot",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Quick NPX tool to set up a pi user and install the pi-coding-agent",
   "main": "dist/index.js",
   "bin": {

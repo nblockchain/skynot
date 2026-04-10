@@ -5,6 +5,7 @@ import * as readline from 'readline';
 import { promisify } from 'util';
 import * as os from 'os';
 import { Command } from 'commander';
+import pkg from '../package.json';
 
 const execAsync = promisify(exec);
 
@@ -118,7 +119,7 @@ async function main() {
   }
 
   const program = new Command();
-  program.version('0.1.0').description('Setup pi user and install pi-coding-agent');
+  program.version(pkg.version).description(pkg.description);
   program.parse(process.argv);
 
   await ensurePiUser();
