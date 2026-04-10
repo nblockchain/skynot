@@ -223,6 +223,7 @@ async function createLauncherScript(): Promise<void> {
 
   // Write the launcher shell script
   const scriptContent = `#!/bin/bash
+echo "Launching pi-coding-agent with pi user (sudo is required to impersonate 'pi' user)..."
 exec sudo -i -u pi bash -c 'cd ${installDir} && npx --yes @mariozechner/pi-coding-agent "$@"' -- "$@"
 `;
   fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
@@ -248,7 +249,6 @@ exec sudo -i -u pi bash -c 'cd ${installDir} && npx --yes @mariozechner/pi-codin
 }
 
 async function launchAgent(): Promise<void> {
-  console.log('Launching pi-coding-agent...');
   const scriptPath = path.join(os.homedir(), 'bin', 'pi');
   const child = spawn(scriptPath, [], { stdio: 'inherit' });
   return new Promise<void>((resolve, reject) => {
