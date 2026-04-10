@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
@@ -73,10 +73,52 @@ async function askQuestion(query: string, silent = false): Promise<string> {
   });
 }
 
-async function runSudo(command: string, sudoPassword?: string): Promise<void> {
-  // Use -S to read password from stdin if provided
-  const fullCmd = sudoPassword ? `echo '${sudoPassword.replace(/'/g, `'\\''`)}' | sudo -S ${command}` : `sudo ${command}`;
-  await execAsync(fullCmd);
+const MAX_SUDO_RETRIES = 3;
+
+function runSudoWithPassword(command: string, password: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn('sudo', ['-S', '-k', 'bash', '-c', command], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    child.stdin.write(password + '\n');
+    child.stdin.end();
+
+    let stderr = '';
+    child.stderr.on('data', (data: Buffer) => {
+      const line = data.toString();
+      // Filter out sudo's own password prompt
+      if (!line.includes('Password:') && !line.includes('password for')) {
+        stderr += line;
+      }
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        // Sanitize: never include the password in error messages
+        const escaped = password.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const safeStderr = stderr.replace(new RegExp(escaped, 'g'), '***');
+        reject(new Error(`sudo command failed (exit code ${code}): ${safeStderr.trim()}`));
+      }
+    });
+  });
+}
+
+async function askSudoPasswordAndRun(command: string, reason: string): Promise<void> {
+  for (let attempt = 1; attempt <= MAX_SUDO_RETRIES; attempt++) {
+    const password = await askQuestion(`Enter sudo password (${reason}): `, true);
+    try {
+      await runSudoWithPassword(command, password.trim());
+      return;
+    } catch (e) {
+      if (attempt < MAX_SUDO_RETRIES) {
+        console.error('Incorrect password, please try again.');
+      } else {
+        throw new Error(`Failed after ${MAX_SUDO_RETRIES} attempts. Aborting.`);
+      }
+    }
+  }
 }
 
 async function userExists(username: string): Promise<boolean> {
@@ -95,13 +137,11 @@ async function ensurePiUser(): Promise<void> {
     return;
   }
   console.log('Creating user "pi"...');
-  const password = await askQuestion('Enter sudo password (required to create user): ', true);
   const platform = os.platform();
   if (platform === 'darwin') {
-    // macOS: use sysadminctl to create the user with a home directory and /bin/zsh shell
-    await runSudo(`sysadminctl -addUser pi -home /Users/pi -shell /bin/zsh`, password.trim());
+    await askSudoPasswordAndRun(`sysadminctl -addUser pi -home /Users/pi -shell /bin/zsh`, 'required to create user');
   } else {
-    await runSudo('useradd -m -s /bin/bash pi', password.trim());
+    await askSudoPasswordAndRun('useradd -m -s /bin/bash pi', 'required to create user');
   }
   console.log('User "pi" created.');
 }
@@ -113,8 +153,10 @@ async function installAgent(): Promise<void> {
   try {
     await execAsync(`sudo -u pi bash -c '${cmd}'`);
   } catch (e) {
-    const password = await askQuestion('Enter sudo password (required to install npm package as pi): ', true);
-    await runSudo(`-u pi bash -c '${cmd}'`, password.trim());
+    await askSudoPasswordAndRun(
+      `su -s /bin/bash pi -c '${cmd}'`,
+      'required to install npm package as pi',
+    );
   }
   console.log('Package installed.');
 }
@@ -130,8 +172,10 @@ async function updatePath(): Promise<void> {
   try {
     await execAsync(`sudo -u pi bash -c "${checkCmd}"`);
   } catch (e) {
-    const password = await askQuestion(`Enter sudo password (required to modify ${rcFile}): `, true);
-    await runSudo(`-u pi bash -c "${checkCmd}"`, password.trim());
+    await askSudoPasswordAndRun(
+      `su -s /bin/bash pi -c "${checkCmd}"`,
+      `required to modify ${rcFile}`,
+    );
   }
   console.log(`${rcFile} updated.`);
 }
@@ -177,13 +221,14 @@ exec sudo -u pi bash -c 'cd ${installDir} && npx pi-coding-agent "$@"' -- "$@"
 
 async function launchAgent(): Promise<void> {
   console.log('Launching pi-coding-agent...');
+  const installDir = getPiInstallDir();
   try {
-    const installDir = getPiInstallDir();
     await execAsync(`sudo -u pi bash -c 'cd ${installDir} && npx pi-coding-agent'`);
   } catch (e) {
-    const installDir = getPiInstallDir();
-    const password = await askQuestion('Enter sudo password (required to launch agent): ', true);
-    await runSudo(`-u pi bash -c 'cd ${installDir} && npx pi-coding-agent'`, password.trim());
+    await askSudoPasswordAndRun(
+      `su -s /bin/bash pi -c 'cd ${installDir} && npx pi-coding-agent'`,
+      'required to launch agent',
+    );
   }
 }
 
