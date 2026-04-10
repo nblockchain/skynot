@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { exec } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as readline from 'readline';
 import { promisify } from 'util';
 import * as os from 'os';
@@ -105,6 +107,45 @@ async function updatePath(): Promise<void> {
   console.log(`${rcFile} updated.`);
 }
 
+async function createLauncherScript(): Promise<void> {
+  const currentUserHome = os.homedir();
+  const binDir = path.join(currentUserHome, 'bin');
+  const scriptPath = path.join(binDir, 'pi');
+  const installDir = getPiInstallDir();
+
+  console.log(`Creating launcher script at ${scriptPath}...`);
+
+  // Create ~/bin/ if it doesn't exist
+  if (!fs.existsSync(binDir)) {
+    fs.mkdirSync(binDir, { recursive: true });
+  }
+
+  // Write the launcher shell script
+  const scriptContent = `#!/bin/bash
+exec sudo -u pi bash -c 'cd ${installDir} && npx pi-coding-agent "$@"' -- "$@"
+`;
+  fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
+  console.log('Launcher script created.');
+
+  // Add $HOME/bin to the current user's PATH via their rc file if not already present
+  const rcFile = getShellRcFile();
+  const rcPath = path.join(currentUserHome, rcFile);
+  const pathLine = 'export PATH="$HOME/bin:$PATH"';
+
+  let rcContent = '';
+  if (fs.existsSync(rcPath)) {
+    rcContent = fs.readFileSync(rcPath, 'utf-8');
+  }
+
+  if (!rcContent.includes(pathLine)) {
+    console.log(`Adding $HOME/bin to PATH in ${rcFile}...`);
+    fs.appendFileSync(rcPath, `\n${pathLine}\n`);
+    console.log(`${rcFile} updated.`);
+  } else {
+    console.log(`$HOME/bin already in PATH (${rcFile}).`);
+  }
+}
+
 async function launchAgent(): Promise<void> {
   console.log('Launching pi-coding-agent...');
   try {
@@ -129,6 +170,7 @@ async function main() {
   await ensurePiUser();
   await installAgent();
   await updatePath();
+  await createLauncherScript();
   await launchAgent();
 }
 
