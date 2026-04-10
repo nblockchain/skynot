@@ -25,6 +25,10 @@ function getPiHome(): string {
   return '/home/pi';
 }
 
+function getPiInstallDir(): string {
+  return `${getPiHome()}/pi`;
+}
+
 async function askQuestion(query: string): Promise<string> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -72,16 +76,14 @@ async function ensurePiUser(): Promise<void> {
 }
 
 async function installAgent(): Promise<void> {
-  console.log('Installing @mariozechner/pi-coding-agent into pi\'s home directory...');
-  // Switch to pi's home and run npm install locally
-  const cmd = `npm install @mariozechner/pi-coding-agent`;
-  // Use sudo -u pi to run as pi user without password (assuming sudoers allow it)
-  // If not allowed, ask for sudo password
+  const installDir = getPiInstallDir();
+  console.log(`Installing @mariozechner/pi-coding-agent into ${installDir}...`);
+  const cmd = `mkdir -p ${installDir} && cd ${installDir} && npm install @mariozechner/pi-coding-agent`;
   try {
-    await execAsync(`sudo -u pi bash -c 'cd ~ && ${cmd}'`);
+    await execAsync(`sudo -u pi bash -c '${cmd}'`);
   } catch (e) {
     const password = await askQuestion('Enter sudo password (required to install npm package as pi): ');
-    await runSudo(`-u pi bash -c 'cd ~ && ${cmd}'`, password.trim());
+    await runSudo(`-u pi bash -c '${cmd}'`, password.trim());
   }
   console.log('Package installed.');
 }
@@ -90,7 +92,7 @@ async function updatePath(): Promise<void> {
   const rcFile = getShellRcFile();
   const piHome = getPiHome();
   console.log(`Adding agent binary directory to pi's PATH via ${rcFile}...`);
-  const line = "export PATH=\$HOME/node_modules/.bin:\$PATH";
+  const line = "export PATH=\$HOME/pi/node_modules/.bin:\$PATH";
   const rcPath = `${piHome}/${rcFile}`;
   // Append line if not already present
   const checkCmd = `grep -Fx '${line}' ${rcPath} 2>/dev/null || echo '${line}' >> ${rcPath}`;
@@ -106,10 +108,12 @@ async function updatePath(): Promise<void> {
 async function launchAgent(): Promise<void> {
   console.log('Launching pi-coding-agent...');
   try {
-    await execAsync(`sudo -u pi bash -c 'cd ~ && npx pi-coding-agent'`, { stdio: 'inherit' });
+    const installDir = getPiInstallDir();
+    await execAsync(`sudo -u pi bash -c 'cd ${installDir} && npx pi-coding-agent'`, { stdio: 'inherit' });
   } catch (e) {
+    const installDir = getPiInstallDir();
     const password = await askQuestion('Enter sudo password (required to launch agent): ');
-    await runSudo(`-u pi bash -c 'cd ~ && npx pi-coding-agent'`, password.trim());
+    await runSudo(`-u pi bash -c 'cd ${installDir} && npx pi-coding-agent'`, password.trim());
   }
 }
 
