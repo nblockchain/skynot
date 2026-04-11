@@ -349,9 +349,10 @@ async function main() {
 
   const program = new Command();
   program
-    .version(pkg.version)
+    .version(pkg.version, '-V, --version', 'Output the version number')
     .description(pkg.description)
-    .option('--update', 'Wipe and reinstall pi-coding-agent to get the latest version')
+    .helpOption('-h, --help', 'Show this help message')
+    .option('-u, --update', 'Wipe and reinstall pi-coding-agent to get the latest version')
     .option('-e, --extensions', 'Install recommended extensions after installing pi-coding-agent');
   program.parse(process.argv);
   const opts = program.opts();
