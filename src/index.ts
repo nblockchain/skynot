@@ -228,6 +228,8 @@ async function createLauncherScript(): Promise<void> {
   // Write the launcher shell script with permission checks
   const scriptContent = `#!/bin/bash
 
+echo "About to launch pi-coding-agent..."
+
 # Check permissions of other users' home directories
 EXPOSED_DIRS=()
 HOME_BASE="${homeBase}"
@@ -266,7 +268,7 @@ if [ \${#EXPOSED_DIRS[@]} -gt 0 ]; then
     echo "  $dir"
   done
   echo ""
-  read -p "Would you like to shield these directories? (recommended) [Y/n] " answer
+  read -p "Would you like to shield these directories? (recommended) [Y/n]" answer
   answer=\${answer:-Y}
   if [[ "$answer" =~ ^[Yy] ]]; then
     for dir in "\${EXPOSED_DIRS[@]}"; do
