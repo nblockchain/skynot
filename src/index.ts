@@ -233,9 +233,23 @@ EXPOSED_DIRS=()
 HOME_BASE="${homeBase}"
 PI_HOME="${piHome}"
 
+SHARED_DIR_WARNING=""
+
 for user_home in "$HOME_BASE"/*/; do
   # Skip pi's own home
   if [ "$user_home" = "$PI_HOME/" ]; then
+    continue
+  fi
+
+  # On macOS, handle /Users/Shared separately
+  if [ "$user_home" = "/Users/Shared/" ]; then
+    perms=$(stat -f "%Sp" "$user_home" 2>/dev/null || stat -c "%A" "$user_home" 2>/dev/null)
+    if [ -n "$perms" ]; then
+      group_others="\${perms:4:6}"
+      if echo "$group_others" | grep -q '[rwx]'; then
+        SHARED_DIR_WARNING="NOTE: /Users/Shared is world-accessible. This is a macOS default, but you may want to restrict it manually if it contains sensitive data."
+      fi
+    fi
     continue
   fi
 
@@ -268,6 +282,12 @@ if [ \${#EXPOSED_DIRS[@]} -gt 0 ]; then
     done
     echo "Done."
   fi
+  echo ""
+fi
+
+if [ -n "$SHARED_DIR_WARNING" ]; then
+  echo "$SHARED_DIR_WARNING"
+  read -n 1 -s -r -p "Press any key to continue..."
   echo ""
 fi
 
