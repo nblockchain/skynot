@@ -25,8 +25,8 @@ The following command‑line flags are available:
 
 | Flag | Description |
 |------|-------------|
-| `-u, --update` | Wipe any existing installation of `pi-coding-agent` and reinstall the latest version. |
-| `-e, --extensions` | After installing `pi-coding-agent`, also install recommended extensions. |
+| `-u, --update` | Wipe any existing installation of Pi and reinstall, to get the latest version. |
+| `-e, --extensions` | After installing Pi, also install recommended extensions. |
 | `-h, --help` | Show the help message with all available options. |
 | `-V, --version` | Show the version number. |
 

@@ -11,6 +11,8 @@ import pkg from '../package.json';
 
 const execAsync = promisify(exec);
 
+const AGENT_PACKAGE = '@mariozechner/pi-coding-agent';
+
 function getShellRcFile(): string {
   const platform = os.platform();
   if (platform === 'darwin') {
@@ -177,13 +179,14 @@ async function ensurePiUser(): Promise<void> {
 
 async function installAgent(): Promise<void> {
   const installDir = getPiInstallDir();
-  const packageDir = path.join(installDir, 'node_modules', '@mariozechner', 'pi-coding-agent');
+  const [scope, name] = AGENT_PACKAGE.split('/');
+  const packageDir = path.join(installDir, 'node_modules', scope, name);
   if (fs.existsSync(packageDir)) {
-    console.log('@mariozechner/pi-coding-agent is already installed, skipping.');
+    console.log(`${AGENT_PACKAGE} is already installed, skipping.`);
     return;
   }
-  console.log(`Installing @mariozechner/pi-coding-agent into ${installDir}...`);
-  const cmd = `mkdir -p ${installDir} && cd ${installDir} && npm install @mariozechner/pi-coding-agent`;
+  console.log(`Installing ${AGENT_PACKAGE} into ${installDir}...`);
+  const cmd = `mkdir -p ${installDir} && cd ${installDir} && npm install ${AGENT_PACKAGE}`;
   await runAsPi(cmd);
   console.log('Package installed.');
 }
@@ -282,7 +285,7 @@ if [ \${#EXPOSED_DIRS[@]} -gt 0 ]; then
 fi
 
 echo "Launching pi-coding-agent with pi user (sudo is required to impersonate 'pi' user)..."
-exec sudo -i -u pi bash -c 'export npm_config_prefix=$HOME/.npm-global && cd ${installDir} && npx --yes @mariozechner/pi-coding-agent "$@"' -- "$@"
+exec sudo -i -u pi bash -c 'export npm_config_prefix=$HOME/.npm-global && cd ${installDir} && npx --yes ${AGENT_PACKAGE} "$@"' -- "$@"
 `;
   fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
   console.log('Launcher script created.');
@@ -384,8 +387,8 @@ async function main() {
     .version(pkg.version, '-V, --version', 'Output the version number')
     .description(pkg.description)
     .helpOption('-h, --help', 'Show this help message')
-    .option('-u, --update', 'Wipe and reinstall pi-coding-agent to get the latest version')
-    .option('-e, --extensions', 'Install recommended extensions after installing pi-coding-agent')
+    .option('-u, --update', `Wipe and reinstall Pi, to get the latest version`)
+    .option('-e, --extensions', `Install recommended extensions after installing Pi`)
     .option('-a, --auth', 'Configure provider authentication (creates auth.json for the pi user)');
   program.parse(process.argv);
   const opts = program.opts();
