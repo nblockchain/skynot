@@ -331,6 +331,38 @@ async function launchAgent(): Promise<void> {
   });
 }
 
+async function configureAuth(): Promise<void> {
+  const providerName = await askQuestion('Enter provider name: ');
+  if (!providerName.trim()) {
+    console.error('Provider name cannot be empty. Skipping auth configuration.');
+    return;
+  }
+  const apiKey = await askQuestion('Enter API key: ');
+  if (!apiKey.trim()) {
+    console.error('API key cannot be empty. Skipping auth configuration.');
+    return;
+  }
+
+  const authData = {
+    [providerName.trim()]: {
+      type: 'api_key',
+      key: apiKey.trim(),
+    },
+  };
+
+  const piHome = getPiHome();
+  const agentDir = path.join(piHome, '.pi', 'agent');
+  const authFilePath = path.join(agentDir, 'auth.json');
+  const authJson = JSON.stringify(authData, null, 2);
+
+  console.log(`Writing auth.json to ${agentDir}...`);
+  await runAsPi(`mkdir -p ${agentDir} && cat > ${authFilePath} << 'SKYNOT_AUTH_EOF'
+${authJson}
+SKYNOT_AUTH_EOF
+chmod 600 ${authFilePath}`);
+  console.log('Auth configuration saved.');
+}
+
 async function wipeInstallation(): Promise<void> {
   const installDir = getPiInstallDir();
   if (fs.existsSync(installDir)) {
@@ -353,7 +385,8 @@ async function main() {
     .description(pkg.description)
     .helpOption('-h, --help', 'Show this help message')
     .option('-u, --update', 'Wipe and reinstall pi-coding-agent to get the latest version')
-    .option('-e, --extensions', 'Install recommended extensions after installing pi-coding-agent');
+    .option('-e, --extensions', 'Install recommended extensions after installing pi-coding-agent')
+    .option('-a, --auth', 'Configure provider authentication (creates auth.json for the pi user)');
   program.parse(process.argv);
   const opts = program.opts();
 
@@ -367,6 +400,10 @@ async function main() {
 
   if (opts.extensions) {
     await installExtensions();
+  }
+
+  if (opts.auth) {
+    await configureAuth();
   }
 
   await updatePath();
