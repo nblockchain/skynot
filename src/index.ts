@@ -311,13 +311,41 @@ async function ensureAgentUserExists(): Promise<void> {
     const platform = os.platform();
     if (platform === "darwin") {
         await askSudoPasswordAndRun(
-            `sysadminctl -addUser ${AGENT_USER} -home ${agentUserHome} -shell /bin/zsh && createhomedir -c -u ${AGENT_USER} 2>/dev/null; mkdir -p ${agentUserHome} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chgrp ${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+s ${agentUserHome}`,
+            `sysadminctl -addUser ${AGENT_USER} -home ${agentUserHome} -shell /bin/zsh`,
             "required to create user"
+        );
+        await askSudoPasswordAndRun(
+            `createhomedir -c -u ${AGENT_USER} 2>/dev/null || true`,
+            "required to create home directory"
+        );
+        await askSudoPasswordAndRun(
+            `mkdir -p ${agentUserHome}`,
+            "required to ensure home directory exists"
+        );
+        await askSudoPasswordAndRun(
+            `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome}`,
+            "required to set home directory ownership"
+        );
+        await askSudoPasswordAndRun(
+            `chgrp ${AGENT_GROUP_NAME} ${agentUserHome}`,
+            "required to set home directory group"
+        );
+        await askSudoPasswordAndRun(
+            `chmod g+s ${agentUserHome}`,
+            "required to set setgid bit on home directory"
         );
     } else {
         await askSudoPasswordAndRun(
-            `useradd -m -s /bin/bash -g ${AGENT_GROUP_NAME} ${AGENT_USER} && chgrp ${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+s ${agentUserHome}`,
+            `useradd -m -s /bin/bash -g ${AGENT_GROUP_NAME} ${AGENT_USER}`,
             "required to create user"
+        );
+        await askSudoPasswordAndRun(
+            `chgrp ${AGENT_GROUP_NAME} ${agentUserHome}`,
+            "required to set home directory group"
+        );
+        await askSudoPasswordAndRun(
+            `chmod g+s ${agentUserHome}`,
+            "required to set setgid bit on home directory"
         );
     }
     console.log(`User "${AGENT_USER}" created.`);
