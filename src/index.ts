@@ -311,12 +311,12 @@ async function ensureAgentUserExists(): Promise<void> {
     const platform = os.platform();
     if (platform === "darwin") {
         await askSudoPasswordAndRun(
-            `sysadminctl -addUser ${AGENT_USER} -home ${agentUserHome} -shell /bin/zsh && createhomedir -c -u ${AGENT_USER} 2>/dev/null; mkdir -p ${agentUserHome} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome}`,
+            `sysadminctl -addUser ${AGENT_USER} -home ${agentUserHome} -shell /bin/zsh && createhomedir -c -u ${AGENT_USER} 2>/dev/null; mkdir -p ${agentUserHome} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chgrp ${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+s ${agentUserHome}`,
             "required to create user"
         );
     } else {
         await askSudoPasswordAndRun(
-            `useradd -m -s /bin/bash -g ${AGENT_GROUP_NAME} ${AGENT_USER}`,
+            `useradd -m -s /bin/bash -g ${AGENT_GROUP_NAME} ${AGENT_USER} && chgrp ${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+s ${agentUserHome}`,
             "required to create user"
         );
     }
