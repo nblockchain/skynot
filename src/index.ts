@@ -330,6 +330,10 @@ async function ensureAgentUserExists(): Promise<void> {
             `chmod g+s ${agentUserHome}`,
             "required to set setgid bit on home directory"
         );
+        await askSudoPasswordAndRun(
+            `chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${agentUserHome}`,
+            "required to set ACL on home directory for group write inheritance"
+        );
     } else {
         await askSudoPasswordAndRun(
             `useradd -m -s /bin/bash -g ${AGENT_GROUP_NAME} ${AGENT_USER}`,
@@ -342,6 +346,10 @@ async function ensureAgentUserExists(): Promise<void> {
         await askSudoPasswordAndRun(
             `chmod g+s ${agentUserHome}`,
             "required to set setgid bit on home directory"
+        );
+        await askSudoPasswordAndRun(
+            `setfacl -d -m g::rwx ${agentUserHome}`,
+            "required to set default ACL on home directory for group write"
         );
     }
     console.log(`User "${AGENT_USER}" created.`);
@@ -763,6 +771,18 @@ async function setupWorkDir(): Promise<string> {
         `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+rwx ${agentUserHome}`,
         `required to set ${AGENT_USER}'s home to belong to ${AGENT_GROUP_NAME} group`
     );
+    const platform = os.platform();
+    if (platform === "darwin") {
+        await askSudoPasswordAndRun(
+            `ls -le ${agentUserHome} | grep -q "group:${AGENT_GROUP_NAME}" || chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${agentUserHome}`,
+            "required to ensure ACL on home directory for group write inheritance"
+        );
+    } else {
+        await askSudoPasswordAndRun(
+            `setfacl -d -m g::rwx ${agentUserHome}`,
+            "required to ensure default ACL on home directory for group write"
+        );
+    }
 
     // Create work directory owned by ${AGENT_USER}:${AGENT_GROUP_NAME} with group rwx
     console.log(`Setting up work directory at ${workDir}...`);
