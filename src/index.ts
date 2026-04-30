@@ -315,12 +315,8 @@ async function ensureAgentUserExists(): Promise<void> {
             "required to create user"
         );
         await askSudoPasswordAndRun(
-            `createhomedir -c -u ${AGENT_USER} 2>/dev/null || true`,
+            `createhomedir -c -u ${AGENT_USER} || mkdir -p ${agentUserHome}`,
             "required to create home directory"
-        );
-        await askSudoPasswordAndRun(
-            `mkdir -p ${agentUserHome}`,
-            "required to ensure home directory exists"
         );
         await askSudoPasswordAndRun(
             `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome}`,
