@@ -768,13 +768,13 @@ async function setupWorkDir(): Promise<string> {
 
     console.log(`Setting up group permissions...`);
     await askSudoPasswordAndRun(
-        `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+rwx ${agentUserHome}`,
+        `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+rwxs ${agentUserHome}`,
         `required to set ${AGENT_USER}'s home to belong to ${AGENT_GROUP_NAME} group`
     );
     const platform = os.platform();
     if (platform === "darwin") {
         await askSudoPasswordAndRun(
-            `ls -le ${agentUserHome} | grep -q "group:${AGENT_GROUP_NAME}" || chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${agentUserHome}`,
+            `ls -led ${agentUserHome} | grep -q "group:${AGENT_GROUP_NAME}" || chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${agentUserHome}`,
             "required to ensure ACL on home directory for group write inheritance"
         );
     } else {
@@ -784,12 +784,23 @@ async function setupWorkDir(): Promise<string> {
         );
     }
 
-    // Create work directory owned by ${AGENT_USER}:${AGENT_GROUP_NAME} with group rwx
+    // Create work directory owned by ${AGENT_USER}:${AGENT_GROUP_NAME} with group rwx and setgid
     console.log(`Setting up work directory at ${workDir}...`);
     await askSudoPasswordAndRun(
-        `mkdir -p ${workDir} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${workDir} && chmod g+rwx ${workDir}`,
+        `mkdir -p ${workDir} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${workDir} && chmod g+rwxs ${workDir}`,
         "required to set up work directory"
     );
+    if (platform === "darwin") {
+        await askSudoPasswordAndRun(
+            `ls -led ${workDir} | grep -q "group:${AGENT_GROUP_NAME}" || chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${workDir}`,
+            "required to ensure ACL on work directory for group write inheritance"
+        );
+    } else {
+        await askSudoPasswordAndRun(
+            `setfacl -d -m g::rwx ${workDir}`,
+            "required to ensure default ACL on work directory for group write"
+        );
+    }
     console.log("Work directory ready.");
 
     return workDir;
