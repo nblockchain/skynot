@@ -498,7 +498,7 @@ async function updatePath(): Promise<void> {
     console.log(`${rcFile} updated.`);
 }
 
-async function updateUmask(): Promise<void> {
+async function updateAgentUserUmask(): Promise<void> {
     const rcFile = getShellRcFile();
     const agentUserHome = getAgentUserHome();
     const line = `umask ${DEFAULT_UMASK}`;
@@ -521,6 +521,62 @@ async function updateUmask(): Promise<void> {
     const checkCmd = `grep -Fx '${line}' ${rcPath} 2>/dev/null || echo '${line}' >> ${rcPath}`;
     await runAsAgentUser(checkCmd);
     console.log(`${rcFile} updated with umask.`);
+}
+
+async function setupUmaskScriptForCurrentUser(): Promise<void> {
+    const currentUserHome = os.homedir();
+    const rcFile = getShellRcFile();
+    const binDir = path.join(currentUserHome, "bin");
+    const scriptPath = path.join(binDir, "ai-umask.sh");
+    const rcPath = path.join(currentUserHome, rcFile);
+    const workDir = path.join(getAgentUserHome(), "Work");
+    const sourceLine = `[ -f ~/bin/ai-umask.sh ] && source ~/bin/ai-umask.sh`;
+
+    // Ensure bin directory exists
+    if (!fs.existsSync(binDir)) {
+        fs.mkdirSync(binDir, { recursive: true });
+    }
+
+    const scriptContent = `#!/bin/bash
+ORIGINAL_UMASK=$(umask)
+
+function set_dir_umask {
+    if [[ "$PWD" == "${workDir}"* ]]; then
+        # ug+rwx , o-rwx ; result= 770
+        umask 007
+    else
+        umask "$ORIGINAL_UMASK"
+    fi
+}
+
+if [ -n "$ZSH_VERSION" ]; then
+    autoload -Uz add-zsh-hook
+    add-zsh-hook chpwd set_dir_umask
+elif [ -n "$BASH_VERSION" ]; then
+    if [[ "$PROMPT_COMMAND" != *"set_dir_umask"* ]]; then
+        PROMPT_COMMAND="set_dir_umask${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    fi
+fi
+
+set_dir_umask
+`;
+
+    fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
+
+    // Check if already in rc file
+    let rcContent = "";
+    if (fs.existsSync(rcPath)) {
+        rcContent = fs.readFileSync(rcPath, "utf-8");
+    }
+
+    if (rcContent.includes(sourceLine)) {
+        console.log(`Umask script already sourced in ${rcFile}, skipping.`);
+        return;
+    }
+
+    console.log(`Adding umask script source to current user's ${rcFile}...`);
+    fs.appendFileSync(rcPath, `\n${sourceLine}\n`);
+    console.log(`${rcFile} updated with umask script.`);
 }
 
 async function createLauncherScript(piBinaryPath: string): Promise<void> {
@@ -1207,7 +1263,8 @@ async function main() {
     }
 
     await updatePath();
-    await updateUmask();
+    await updateAgentUserUmask();
+    await setupUmaskScriptForCurrentUser();
     await createLauncherScript(piBinaryPath);
 
     const workDir = await setupWorkDir();
