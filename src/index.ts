@@ -538,23 +538,23 @@ async function setupUmaskScriptForCurrentUser(): Promise<void> {
     }
 
     const scriptContent = `#!/bin/bash
-ORIGINAL_UMASK=$(umask)
+ORIGINAL_UMASK=\$(umask)
 
 function set_dir_umask {
-    if [[ "$PWD" == "${workDir}"* ]]; then
+    if [[ "\$PWD" == "${workDir}"* ]]; then
         # ug+rwx , o-rwx ; result= 770
         umask 007
     else
-        umask "$ORIGINAL_UMASK"
+        umask "\$ORIGINAL_UMASK"
     fi
 }
 
-if [ -n "$ZSH_VERSION" ]; then
+if [ -n "\$ZSH_VERSION" ]; then
     autoload -Uz add-zsh-hook
     add-zsh-hook chpwd set_dir_umask
-elif [ -n "$BASH_VERSION" ]; then
-    if [[ "$PROMPT_COMMAND" != *"set_dir_umask"* ]]; then
-        PROMPT_COMMAND="set_dir_umask${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+elif [ -n "\$BASH_VERSION" ]; then
+    if [[ "\$PROMPT_COMMAND" != *"set_dir_umask"* ]]; then
+        PROMPT_COMMAND="set_dir_umask\${PROMPT_COMMAND:+; \$PROMPT_COMMAND}"
     fi
 fi
 
