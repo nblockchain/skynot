@@ -21,13 +21,15 @@ This repository is just a quick `npx` tool that helps you set up this ideal appr
 1. Check if wget is present; if not: abort suggesting user to install it or use `--npm` flag.
 2. Create a user named `aidev`, if missing.
 3. Create a group named `aiteam`, if missing.
-4. Create sudoers file so that current user can impersonate `aidev` without needing a (sudo) password.
-5. Download & install Pi under `aidev` user's home: `~aidev/pi/`.
-6. Install the recommended extensions and/or authentication files if user used flags for them.
-7. Add the agent's binary directory to the `aidev` user's `$PATH` env var.
-8. Create a launcher script at `$HOME/bin/spi` for the current user.
-9. Create a proper work dir inside `~aidev` named `Work`, owned by `aidev:aiteam`.
-10. Assign both `aidev` user and current user to group `aiteam`.
+4. Assign both `aidev` user and current user to group `aiteam`.
+5. Create sudoers file so that current user can impersonate `aidev` without needing a (sudo) password.
+6. Setup 007 umask and ACLs for `aidev` and current user to share files without issues.
+7. Download & install Pi under `aidev` user's home: `~aidev/pi/`.
+8. Install the recommended extensions and/or authentication files if user used flags for them.
+9. Configure git to be able to share repositores in `~aidev/` dir.
+10. Add the agent's binary directory to the `aidev` user's `$PATH` env var.
+11. Create a launcher script at `$HOME/bin/spi` for the current user.
+12. Create a proper work dir inside `~aidev` named `Work`, owned by `aidev:aiteam`.
 
 
 ## Launch Steps (performed every time you run the launcher script `spi`)
