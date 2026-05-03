@@ -845,6 +845,14 @@ async function setupWorkDir(): Promise<string> {
             "required to ensure default ACL on work directory for group write"
         );
     }
+    // Mark all directories under the work directory as safe for git
+    const safeDirectoryCmd = `git config --global --add safe.directory '${workDir}/*'`;
+    await runAsAgentUser(safeDirectoryCmd);
+    await execAsync(safeDirectoryCmd);
+    console.log(
+        `Adjusted git settings for '${workDir}/*' to allow working together between '${AGENT_USER}' and current user.`
+    );
+
     console.log("Work directory ready.");
 
     return workDir;
@@ -1246,11 +1254,6 @@ async function main() {
         }
         await configureGit(identity);
     }
-
-    // Mark all directories under the agent user's home as safe for git
-    await runAsAgentUser(
-        `git config --global --add safe.directory '${agentUserHome}/*'`
-    );
 
     await updatePath();
     await updateAgentUserUmask();
