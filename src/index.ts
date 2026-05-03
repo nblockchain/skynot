@@ -102,16 +102,11 @@ function getShellRcFile(): string {
     return ".bashrc";
 }
 
-function getAgentUserHome(): string {
-    const platform = os.platform();
-    if (platform === "darwin") {
-        return `/Users/${AGENT_USER}`;
-    }
-    return `/home/${AGENT_USER}`;
-}
+const agentUserHome: string =
+    os.platform() === "darwin" ? `/Users/${AGENT_USER}` : `/home/${AGENT_USER}`;
 
 function getPiInstallDir(): string {
-    return `${getAgentUserHome()}/pi`;
+    return `${agentUserHome}/pi`;
 }
 
 async function askQuestion(query: string, silent = false): Promise<string> {
@@ -265,7 +260,6 @@ async function runAsAgentUser(
     command: string,
     verbose?: boolean
 ): Promise<void> {
-    const agentUserHome = getAgentUserHome();
     // Set HOME and cd to the agent user's home to avoid inheriting the current user's
     // working directory (which the agent user can't access) and npm cache.
     const wrappedCommand = `export HOME=${agentUserHome} && export npm_config_prefix=${agentUserHome}/.npm-global && umask ${DEFAULT_UMASK} && cd ${agentUserHome} && ${command}`;
@@ -307,7 +301,6 @@ async function ensureAgentUserExists(): Promise<void> {
         return;
     }
     console.log(`Creating user "${AGENT_USER}"...`);
-    const agentUserHome = getAgentUserHome();
     const platform = os.platform();
     if (platform === "darwin") {
         await askSudoPasswordAndRun(
@@ -424,7 +417,6 @@ async function checkWget(): Promise<void> {
 }
 
 async function installAgentFromTarball(verbose?: boolean): Promise<void> {
-    const agentUserHome = getAgentUserHome();
     const piInstallDir = getPiInstallDir();
     const platform = os.platform();
     const arch = os.arch();
@@ -475,7 +467,6 @@ async function installAgentFromTarball(verbose?: boolean): Promise<void> {
 
 async function updatePath(): Promise<void> {
     const rcFile = getShellRcFile();
-    const agentUserHome = getAgentUserHome();
     const line = `export PATH=\$HOME/${AGENT_USER}/node_modules/.bin:\$PATH`;
     const rcPath = `${agentUserHome}/${rcFile}`;
 
@@ -500,7 +491,6 @@ async function updatePath(): Promise<void> {
 
 async function updateAgentUserUmask(): Promise<void> {
     const rcFile = getShellRcFile();
-    const agentUserHome = getAgentUserHome();
     const line = `umask ${DEFAULT_UMASK}`;
     const rcPath = `${agentUserHome}/${rcFile}`;
 
@@ -529,7 +519,7 @@ async function setupUmaskScriptForCurrentUser(): Promise<void> {
     const binDir = path.join(currentUserHome, "bin");
     const scriptPath = path.join(binDir, "ai-umask.sh");
     const rcPath = path.join(currentUserHome, rcFile);
-    const workDir = path.join(getAgentUserHome(), "Work");
+    const workDir = path.join(agentUserHome, "Work");
     const sourceLine = `[ -f ~/bin/ai-umask.sh ] && source ~/bin/ai-umask.sh`;
 
     // Ensure bin directory exists
@@ -591,7 +581,6 @@ async function createLauncherScript(piBinaryPath: string): Promise<void> {
         fs.mkdirSync(binDir, { recursive: true });
     }
 
-    const agentUserHome = getAgentUserHome();
     const platform = os.platform();
     const homeBase = platform === "darwin" ? "/Users" : "/home";
 
@@ -819,7 +808,6 @@ async function ensureExclusiveGroupMembership(user: string): Promise<void> {
 }
 
 async function setupWorkDir(): Promise<string> {
-    const agentUserHome = getAgentUserHome();
     const workDir = path.join(agentUserHome, "Work");
 
     console.log(`Setting up group permissions...`);
@@ -915,7 +903,6 @@ async function configureAuth(): Promise<void> {
         },
     };
 
-    const agentUserHome = getAgentUserHome();
     const agentDir = path.join(agentUserHome, ".pi", "agent");
     const authFilePath = path.join(agentDir, "auth.json");
     const authJson = JSON.stringify(authData, null, 2);
@@ -941,7 +928,6 @@ async function copySshKeys(): Promise<void> {
         return;
     }
 
-    const agentUserHome = getAgentUserHome();
     const agentUserSshDir = path.join(agentUserHome, ".ssh");
 
     console.log(`Copying SSH keys to ${agentUserSshDir}...`);
@@ -1036,7 +1022,6 @@ async function wipeInstallation(): Promise<void> {
 }
 
 async function destroyInstallation(): Promise<void> {
-    const agentUserHome = getAgentUserHome();
     const platform = os.platform();
 
     console.log("\n=== DESTROY MODE ===");
@@ -1163,7 +1148,7 @@ async function main() {
         )
         .option(
             "--BURN, --destroy",
-            `Destroy the '${AGENT_USER}' user, their home directory (${getAgentUserHome()}), and the '${AGENT_GROUP_NAME}' group. Requires typing 'DELETE' to confirm.`
+            `Destroy the '${AGENT_USER}' user, their home directory (${agentUserHome}), and the '${AGENT_GROUP_NAME}' group. Requires typing 'DELETE' to confirm.`
         );
     program.parse(process.argv);
     const opts = program.opts();
@@ -1263,7 +1248,6 @@ async function main() {
     }
 
     // Mark all directories under the agent user's home as safe for git
-    const agentUserHome = getAgentUserHome();
     await runAsAgentUser(
         `git config --global --add safe.directory '${agentUserHome}/*'`
     );
