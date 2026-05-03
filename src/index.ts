@@ -1262,6 +1262,12 @@ async function main() {
         await configureGit(identity);
     }
 
+    // Mark all directories under the agent user's home as safe for git
+    const agentUserHome = getAgentUserHome();
+    await runAsAgentUser(
+        `git config --global --add safe.directory '${agentUserHome}/*'`
+    );
+
     await updatePath();
     await updateAgentUserUmask();
     await setupUmaskScriptForCurrentUser();
