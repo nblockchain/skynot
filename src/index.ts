@@ -1174,6 +1174,16 @@ async function main() {
         console.error("Error: npm not found. Please install npm.");
         process.exit(1);
     }
+    if (os.platform() !== "darwin") {
+        try {
+            await execAsync("which setfacl");
+        } catch {
+            console.error(
+                "Error: setfacl not found. Please install it (e.g., 'apt install acl' on Debian/Ubuntu)."
+            );
+            process.exit(1);
+        }
+    }
     await checkNodeVersion("current user");
 
     if (opts.paranoid) {

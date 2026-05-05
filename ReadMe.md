@@ -77,3 +77,5 @@ Please note, `-u` would technically not wipe or reinstall extensions, as they no
 * Linux or macOS
 * NodeJS v22.x
 * NPM's `npx` (install with `brew install npm` or `apt install npm`)
+* git (to setup git permissions properly in the Work directory)
+* `setfacl` command in Linux (to setup ACLs; in Ubuntu this command is provided by the `acl` APT package)
