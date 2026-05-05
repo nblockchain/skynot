@@ -11,7 +11,7 @@ import * as readline from "readline";
 import { promisify } from "util";
 import * as os from "os";
 import { Command } from "commander";
-import { Option, Some, Nothing, None, OptionHelpers } from "fp-sdk";
+import { Option, Some, Nothing, None, OptionHelpers, Empty } from "fp-sdk";
 import pkg from "../package.json";
 
 const execAsync = promisify(exec);
@@ -190,8 +190,11 @@ async function runSudoWithPassword(
         code: number | null
     ) => {
         // Sanitize: never include the password in error messages
-        const escaped = password.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const safeStderr = stderr.replace(new RegExp(escaped, "g"), "***");
+        let safeStderr = stderr;
+        if (password !== Empty.string()) {
+            const escaped = password.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            safeStderr = stderr.replace(new RegExp(escaped, "g"), "***");
+        }
         return new Error(
             `sudo command '${command}' failed (exit code ${code}): ${safeStderr.trim()}`
         );
