@@ -31,6 +31,7 @@ const LAUNCHER_SCRIPT_FILENAME = "spi";
 const AGENT_GROUP_NAME = "aiteam";
 const DEFAULT_UMASK = "007";
 const MIN_NODE_MAJOR_VERSION = 22;
+const MIN_GIT_VERSION = [2, 46];
 
 type GithubApiReleasesJson = {
     assets: {
@@ -1186,10 +1187,43 @@ async function main() {
     const opts = program.opts();
 
     // Requirement checks (placed after parse so --help/--version still work)
+    const minGitVersionStr = `v${MIN_GIT_VERSION[0]}.${MIN_GIT_VERSION[1]}`;
     try {
-        await execAsync("which git");
-    } catch {
-        console.error("Error: git not found. Please install git.");
+        const gitVersionResult = await execAsync("git --version");
+        const gitVersionMatch = gitVersionResult.stdout
+            .trim()
+            .match(/git version (\d+)\.(\d+)/);
+        if (!gitVersionMatch) {
+            console.error(
+                `Error: could not determine git version. Please install git ${minGitVersionStr} or newer.`
+            );
+            process.exit(1);
+        }
+        const gitMajor = parseInt(gitVersionMatch[1], 10);
+        const gitMinor = parseInt(gitVersionMatch[2], 10);
+        if (
+            gitMajor < MIN_GIT_VERSION[0] ||
+            (gitMajor === MIN_GIT_VERSION[0] && gitMinor < MIN_GIT_VERSION[1])
+        ) {
+            console.error(
+                `Error: git version ${gitMajor}.${gitMinor} is too old. Please install git ${minGitVersionStr} or newer (required for wildcard support in git config).`
+            );
+            process.exit(1);
+        }
+    } catch (err: unknown) {
+        if (
+            err instanceof Error &&
+            (err.message.includes("not found") ||
+                err.message.includes("No such file"))
+        ) {
+            console.error(
+                `Error: git not found. Please install git ${minGitVersionStr} or newer.`
+            );
+        } else {
+            console.error(
+                `Error: could not run git. Please install git ${minGitVersionStr} or newer.`
+            );
+        }
         process.exit(1);
     }
     try {
