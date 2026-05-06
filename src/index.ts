@@ -994,7 +994,7 @@ async function resolveGitIdentity(
             email = new Some(match[2].trim());
         } else {
             console.error(
-                'Invalid format for --git argument. Expected: "Name Surname <email@example.com>"'
+                'Invalid format for --git (-g) argument. Expected: "Name Surname <email@example.com>"'
             );
             process.exit(1);
         }
