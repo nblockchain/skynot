@@ -974,7 +974,16 @@ async function copySshKeys(): Promise<void> {
     );
 }
 
-async function configureGit(identity: Option<string>): Promise<void> {
+type GitIdentity = { name: string; email: string };
+
+/**
+ * Parse and resolve the git identity early (before any system changes).
+ * This validates the --git argument and, if no explicit identity is given,
+ * reads the current user's git config.
+ */
+async function resolveGitIdentity(
+    identity: Option<string>
+): Promise<GitIdentity> {
     let name: Option<string> = Nothing;
     let email: Option<string> = Nothing;
 
@@ -1021,12 +1030,15 @@ async function configureGit(identity: Option<string>): Promise<void> {
         process.exit(1);
     }
 
-    // Apply to the agent user
+    return { name: name.value, email: email.value };
+}
+
+async function applyGitIdentity(identity: GitIdentity): Promise<void> {
     await runAsAgentUser(
-        `git config --global user.name "${name.value}" && git config --global user.email "${email.value}"`
+        `git config --global user.name "${identity.name}" && git config --global user.email "${identity.email}"`
     );
     console.log(
-        `Git config for '${AGENT_USER}' set to ${name.value} <${email.value}>`
+        `Git config for '${AGENT_USER}' set to ${identity.name} <${identity.email}>`
     );
 }
 
@@ -1202,6 +1214,23 @@ async function main() {
         paranoidMode = true;
     }
 
+    // Parse and validate --git argument early, before any system changes
+    let resolvedGitIdentity: Option<GitIdentity> = Nothing;
+    if (opts.git) {
+        let identity: Option<string>;
+        if (opts.git === true) {
+            identity = Nothing;
+        } else if (typeof opts.git === "string") {
+            identity = new Some(opts.git);
+        } else {
+            console.error(
+                'Invalid --git argument. Expected a string in the form "Name Surname <email@example.com>" or no argument at all.'
+            );
+            process.exit(1);
+        }
+        resolvedGitIdentity = new Some(await resolveGitIdentity(identity));
+    }
+
     if (opts.destroy) {
         if (opts.update || opts.extensions || opts.auth || opts.ssh) {
             console.error(
@@ -1262,19 +1291,8 @@ async function main() {
         await copySshKeys();
     }
 
-    if (opts.git) {
-        let identity: Option<string>;
-        if (opts.git === true) {
-            identity = Nothing;
-        } else if (typeof opts.git === "string") {
-            identity = new Some(opts.git);
-        } else {
-            console.error(
-                'Invalid --git argument. Expected a string in the form "Name Surname <email@example.com>" or no argument at all.'
-            );
-            process.exit(1);
-        }
-        await configureGit(identity);
+    if (resolvedGitIdentity instanceof Some) {
+        await applyGitIdentity(resolvedGitIdentity.value);
     }
 
     await updatePath();
