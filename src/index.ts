@@ -102,16 +102,11 @@ function getShellRcFile(): string {
     return ".bashrc";
 }
 
-function getAgentUserHome(): string {
-    const platform = os.platform();
-    if (platform === "darwin") {
-        return `/Users/${AGENT_USER}`;
-    }
-    return `/home/${AGENT_USER}`;
-}
+const agentUserHome: string =
+    os.platform() === "darwin" ? `/Users/${AGENT_USER}` : `/home/${AGENT_USER}`;
 
 function getPiInstallDir(): string {
-    return `${getAgentUserHome()}/pi`;
+    return `${agentUserHome}/pi`;
 }
 
 async function askQuestion(query: string, silent = false): Promise<string> {
@@ -265,7 +260,6 @@ async function runAsAgentUser(
     command: string,
     verbose?: boolean
 ): Promise<void> {
-    const agentUserHome = getAgentUserHome();
     // Set HOME and cd to the agent user's home to avoid inheriting the current user's
     // working directory (which the agent user can't access) and npm cache.
     const wrappedCommand = `export HOME=${agentUserHome} && export npm_config_prefix=${agentUserHome}/.npm-global && umask ${DEFAULT_UMASK} && cd ${agentUserHome} && ${command}`;
@@ -307,17 +301,48 @@ async function ensureAgentUserExists(): Promise<void> {
         return;
     }
     console.log(`Creating user "${AGENT_USER}"...`);
-    const agentUserHome = getAgentUserHome();
     const platform = os.platform();
     if (platform === "darwin") {
         await askSudoPasswordAndRun(
-            `sysadminctl -addUser ${AGENT_USER} -home ${agentUserHome} -shell /bin/zsh && createhomedir -c -u ${AGENT_USER} 2>/dev/null; mkdir -p ${agentUserHome} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome}`,
+            `sysadminctl -addUser ${AGENT_USER} -home ${agentUserHome} -shell /bin/zsh`,
             "required to create user"
+        );
+        await askSudoPasswordAndRun(
+            `createhomedir -c -u ${AGENT_USER} || mkdir -p ${agentUserHome}`,
+            "required to create home directory"
+        );
+        await askSudoPasswordAndRun(
+            `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome}`,
+            "required to set home directory ownership"
+        );
+        await askSudoPasswordAndRun(
+            `chgrp ${AGENT_GROUP_NAME} ${agentUserHome}`,
+            "required to set home directory group"
+        );
+        await askSudoPasswordAndRun(
+            `chmod g+s ${agentUserHome}`,
+            "required to set setgid bit on home directory"
+        );
+        await askSudoPasswordAndRun(
+            `chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${agentUserHome}`,
+            "required to set ACL on home directory for group write inheritance"
         );
     } else {
         await askSudoPasswordAndRun(
             `useradd -m -s /bin/bash -g ${AGENT_GROUP_NAME} ${AGENT_USER}`,
             "required to create user"
+        );
+        await askSudoPasswordAndRun(
+            `chgrp ${AGENT_GROUP_NAME} ${agentUserHome}`,
+            "required to set home directory group"
+        );
+        await askSudoPasswordAndRun(
+            `chmod g+s ${agentUserHome}`,
+            "required to set setgid bit on home directory"
+        );
+        await askSudoPasswordAndRun(
+            `setfacl -d -m g::rwx ${agentUserHome}`,
+            "required to set default ACL on home directory for group write"
         );
     }
     console.log(`User "${AGENT_USER}" created.`);
@@ -392,7 +417,6 @@ async function checkWget(): Promise<void> {
 }
 
 async function installAgentFromTarball(verbose?: boolean): Promise<void> {
-    const agentUserHome = getAgentUserHome();
     const piInstallDir = getPiInstallDir();
     const platform = os.platform();
     const arch = os.arch();
@@ -443,7 +467,6 @@ async function installAgentFromTarball(verbose?: boolean): Promise<void> {
 
 async function updatePath(): Promise<void> {
     const rcFile = getShellRcFile();
-    const agentUserHome = getAgentUserHome();
     const line = `export PATH=\$HOME/${AGENT_USER}/node_modules/.bin:\$PATH`;
     const rcPath = `${agentUserHome}/${rcFile}`;
 
@@ -466,9 +489,8 @@ async function updatePath(): Promise<void> {
     console.log(`${rcFile} updated.`);
 }
 
-async function updateUmask(): Promise<void> {
+async function updateAgentUserUmask(): Promise<void> {
     const rcFile = getShellRcFile();
-    const agentUserHome = getAgentUserHome();
     const line = `umask ${DEFAULT_UMASK}`;
     const rcPath = `${agentUserHome}/${rcFile}`;
 
@@ -491,6 +513,62 @@ async function updateUmask(): Promise<void> {
     console.log(`${rcFile} updated with umask.`);
 }
 
+async function setupUmaskScriptForCurrentUser(): Promise<void> {
+    const currentUserHome = os.homedir();
+    const rcFile = getShellRcFile();
+    const binDir = path.join(currentUserHome, "bin");
+    const scriptPath = path.join(binDir, "ai-umask.sh");
+    const rcPath = path.join(currentUserHome, rcFile);
+    const workDir = path.join(agentUserHome, "Work");
+    const sourceLine = `[ -f ~/bin/ai-umask.sh ] && source ~/bin/ai-umask.sh`;
+
+    // Ensure bin directory exists
+    if (!fs.existsSync(binDir)) {
+        fs.mkdirSync(binDir, { recursive: true });
+    }
+
+    const scriptContent = `#!/bin/bash
+ORIGINAL_UMASK=\$(umask)
+
+function set_dir_umask {
+    if [[ "\$PWD" == "${workDir}"* ]]; then
+        # ug+rwx , o-rwx ; result= 770
+        umask 007
+    else
+        umask "\$ORIGINAL_UMASK"
+    fi
+}
+
+if [ -n "\$ZSH_VERSION" ]; then
+    autoload -Uz add-zsh-hook
+    add-zsh-hook chpwd set_dir_umask
+elif [ -n "\$BASH_VERSION" ]; then
+    if [[ "\$PROMPT_COMMAND" != *"set_dir_umask"* ]]; then
+        PROMPT_COMMAND="set_dir_umask\${PROMPT_COMMAND:+; \$PROMPT_COMMAND}"
+    fi
+fi
+
+set_dir_umask
+`;
+
+    fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
+
+    // Check if already in rc file
+    let rcContent = "";
+    if (fs.existsSync(rcPath)) {
+        rcContent = fs.readFileSync(rcPath, "utf-8");
+    }
+
+    if (rcContent.includes(sourceLine)) {
+        console.log(`Umask script already sourced in ${rcFile}, skipping.`);
+        return;
+    }
+
+    console.log(`Adding umask script source to current user's ${rcFile}...`);
+    fs.appendFileSync(rcPath, `\n${sourceLine}\n`);
+    console.log(`${rcFile} updated with umask script.`);
+}
+
 async function createLauncherScript(piBinaryPath: string): Promise<void> {
     const currentUserHome = os.homedir();
     const binDir = path.join(currentUserHome, "bin");
@@ -503,7 +581,6 @@ async function createLauncherScript(piBinaryPath: string): Promise<void> {
         fs.mkdirSync(binDir, { recursive: true });
     }
 
-    const agentUserHome = getAgentUserHome();
     const platform = os.platform();
     const homeBase = platform === "darwin" ? "/Users" : "/home";
 
@@ -731,21 +808,51 @@ async function ensureExclusiveGroupMembership(user: string): Promise<void> {
 }
 
 async function setupWorkDir(): Promise<string> {
-    const agentUserHome = getAgentUserHome();
     const workDir = path.join(agentUserHome, "Work");
 
     console.log(`Setting up group permissions...`);
     await askSudoPasswordAndRun(
-        `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+rwx ${agentUserHome}`,
+        `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+rwxs ${agentUserHome}`,
         `required to set ${AGENT_USER}'s home to belong to ${AGENT_GROUP_NAME} group`
     );
+    const platform = os.platform();
+    if (platform === "darwin") {
+        await askSudoPasswordAndRun(
+            `ls -led ${agentUserHome} | grep -q "group:${AGENT_GROUP_NAME}" || chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${agentUserHome}`,
+            "required to ensure ACL on home directory for group write inheritance"
+        );
+    } else {
+        await askSudoPasswordAndRun(
+            `setfacl -d -m g::rwx ${agentUserHome}`,
+            "required to ensure default ACL on home directory for group write"
+        );
+    }
 
-    // Create work directory owned by ${AGENT_USER}:${AGENT_GROUP_NAME} with group rwx
+    // Create work directory owned by ${AGENT_USER}:${AGENT_GROUP_NAME} with group rwx and setgid
     console.log(`Setting up work directory at ${workDir}...`);
     await askSudoPasswordAndRun(
-        `mkdir -p ${workDir} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${workDir} && chmod g+rwx ${workDir}`,
+        `mkdir -p ${workDir} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${workDir} && chmod g+rwxs ${workDir}`,
         "required to set up work directory"
     );
+    if (platform === "darwin") {
+        await askSudoPasswordAndRun(
+            `ls -led ${workDir} | grep -q "group:${AGENT_GROUP_NAME}" || chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${workDir}`,
+            "required to ensure ACL on work directory for group write inheritance"
+        );
+    } else {
+        await askSudoPasswordAndRun(
+            `setfacl -d -m g::rwx ${workDir}`,
+            "required to ensure default ACL on work directory for group write"
+        );
+    }
+    // Mark all directories under the work directory as safe for git
+    const safeDirectoryCmd = `git config --global --add safe.directory '${workDir}/*'`;
+    await runAsAgentUser(safeDirectoryCmd);
+    await execAsync(safeDirectoryCmd);
+    console.log(
+        `Adjusted git settings for '${workDir}/*' to allow working together between '${AGENT_USER}' and current user.`
+    );
+
     console.log("Work directory ready.");
 
     return workDir;
@@ -804,7 +911,6 @@ async function configureAuth(): Promise<void> {
         },
     };
 
-    const agentUserHome = getAgentUserHome();
     const agentDir = path.join(agentUserHome, ".pi", "agent");
     const authFilePath = path.join(agentDir, "auth.json");
     const authJson = JSON.stringify(authData, null, 2);
@@ -830,7 +936,6 @@ async function copySshKeys(): Promise<void> {
         return;
     }
 
-    const agentUserHome = getAgentUserHome();
     const agentUserSshDir = path.join(agentUserHome, ".ssh");
 
     console.log(`Copying SSH keys to ${agentUserSshDir}...`);
@@ -925,7 +1030,6 @@ async function wipeInstallation(): Promise<void> {
 }
 
 async function destroyInstallation(): Promise<void> {
-    const agentUserHome = getAgentUserHome();
     const platform = os.platform();
 
     console.log("\n=== DESTROY MODE ===");
@@ -1052,7 +1156,7 @@ async function main() {
         )
         .option(
             "--BURN, --destroy",
-            `Destroy the '${AGENT_USER}' user, their home directory (${getAgentUserHome()}), and the '${AGENT_GROUP_NAME}' group. Requires typing 'DELETE' to confirm.`
+            `Destroy the '${AGENT_USER}' user, their home directory (${agentUserHome}), and the '${AGENT_GROUP_NAME}' group. Requires typing 'DELETE' to confirm.`
         );
     program.parse(process.argv);
     const opts = program.opts();
@@ -1069,6 +1173,16 @@ async function main() {
     } catch {
         console.error("Error: npm not found. Please install npm.");
         process.exit(1);
+    }
+    if (os.platform() !== "darwin") {
+        try {
+            await execAsync("which setfacl");
+        } catch {
+            console.error(
+                "Error: setfacl not found. Please install it (e.g., 'apt install acl' on Debian/Ubuntu)."
+            );
+            process.exit(1);
+        }
     }
     await checkNodeVersion("current user");
 
@@ -1152,7 +1266,8 @@ async function main() {
     }
 
     await updatePath();
-    await updateUmask();
+    await updateAgentUserUmask();
+    await setupUmaskScriptForCurrentUser();
     await createLauncherScript(piBinaryPath);
 
     const workDir = await setupWorkDir();
