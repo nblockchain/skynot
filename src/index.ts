@@ -157,7 +157,7 @@ async function runSudoWithPassword(
     asUser?: string,
     verbose?: boolean
 ): Promise<void> {
-    const sudoArgs = ["-S", "-k", "-i"];
+    const sudoArgs = ["-S", "-k"];
     if (asUser) {
         sudoArgs.push("-u", asUser);
     }
