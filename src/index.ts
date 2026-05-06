@@ -11,7 +11,15 @@ import * as readline from "readline";
 import { promisify } from "util";
 import * as os from "os";
 import { Command } from "commander";
-import { Option, Some, Nothing, None, OptionHelpers, Empty } from "fp-sdk";
+import {
+    Option,
+    Some,
+    Nothing,
+    None,
+    OptionHelpers,
+    Empty,
+    TypeHelpers,
+} from "fp-sdk";
 import pkg from "../package.json";
 
 const execAsync = promisify(exec);
@@ -984,19 +992,23 @@ async function configureGit(identity: Option<string>): Promise<void> {
     } else {
         // No identity supplied, copy from current user's git config
         try {
-            const { stdout: nameStdout } = await execAsync(
+            const nameCmdResult = await execAsync(
                 "git config --global user.name"
             );
-            const { stdout: emailStdout } = await execAsync(
+            if (!TypeHelpers.isNullOrUndefined(nameCmdResult.stdout)) {
+                let trimmedName = nameCmdResult.stdout.trim();
+                if (trimmedName !== Empty.string()) {
+                    name = new Some(trimmedName);
+                }
+            }
+            const emailCmdResult = await execAsync(
                 "git config --global user.email"
             );
-            name = OptionHelpers.ofObj(nameStdout.trim() || undefined);
-            email = OptionHelpers.ofObj(emailStdout.trim() || undefined);
-            if (name instanceof None || email instanceof None) {
-                console.error(
-                    "Current user's git config does not have user.name or user.email set."
-                );
-                process.exit(1);
+            if (!TypeHelpers.isNullOrUndefined(emailCmdResult.stdout)) {
+                let trimmedEmail = emailCmdResult.stdout.trim();
+                if (trimmedEmail !== Empty.string()) {
+                    email = new Some(trimmedEmail);
+                }
             }
         } catch (e) {
             console.error("Failed to read current user's git config:", e);
