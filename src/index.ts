@@ -1000,7 +1000,9 @@ async function resolveGitIdentity(
             process.exit(1);
         }
     } else {
-        // No identity supplied, copy from current user's git config
+        // No identity supplied, copy from current user's git config.
+        // git config exits with non-zero when a key is not set, so each
+        // call is wrapped in its own try/catch.
         try {
             const nameCmdResult = await execAsync(
                 "git config --global user.name"
@@ -1011,6 +1013,10 @@ async function resolveGitIdentity(
                     name = new Some(trimmedName);
                 }
             }
+        } catch {
+            // user.name not set in current user's git config
+        }
+        try {
             const emailCmdResult = await execAsync(
                 "git config --global user.email"
             );
@@ -1020,14 +1026,17 @@ async function resolveGitIdentity(
                     email = new Some(trimmedEmail);
                 }
             }
-        } catch (e) {
-            console.error("Failed to read current user's git config:", e);
-            process.exit(1);
+        } catch {
+            // user.email not set in current user's git config
         }
     }
 
     if (name instanceof None || email instanceof None) {
-        console.error("Could not determine git name and email.");
+        console.error(
+            "Could not determine git name and/or email. " +
+                "Either set them in your global git config (git config --global user.name / user.email) " +
+                'or pass an explicit identity: --git "Name Surname <email@example.com>"'
+        );
         process.exit(1);
     }
 
