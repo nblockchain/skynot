@@ -11,7 +11,15 @@ import * as readline from "readline";
 import { promisify } from "util";
 import * as os from "os";
 import { Command } from "commander";
-import { Option, Some, Nothing, None, OptionHelpers, Empty } from "fp-sdk";
+import {
+    Option,
+    Some,
+    Nothing,
+    None,
+    OptionHelpers,
+    Empty,
+    TypeHelpers,
+} from "fp-sdk";
 import pkg from "../package.json";
 
 const execAsync = promisify(exec);
@@ -23,6 +31,7 @@ const LAUNCHER_SCRIPT_FILENAME = "spi";
 const AGENT_GROUP_NAME = "aiteam";
 const DEFAULT_UMASK = "007";
 const MIN_NODE_MAJOR_VERSION = 22;
+const MIN_GIT_VERSION = [2, 46];
 
 type GithubApiReleasesJson = {
     assets: {
@@ -975,7 +984,16 @@ async function copySshKeys(): Promise<void> {
     );
 }
 
-async function configureGit(identity: Option<string>): Promise<void> {
+type GitIdentity = { name: string; email: string };
+
+/**
+ * Parse and resolve the git identity early (before any system changes).
+ * This validates the --git argument and, if no explicit identity is given,
+ * reads the current user's git config.
+ */
+async function resolveGitIdentity(
+    identity: Option<string>
+): Promise<GitIdentity> {
     let name: Option<string> = Nothing;
     let email: Option<string> = Nothing;
 
@@ -986,44 +1004,60 @@ async function configureGit(identity: Option<string>): Promise<void> {
             email = new Some(match[2].trim());
         } else {
             console.error(
-                'Invalid format for --git argument. Expected: "Name Surname <email@example.com>"'
+                'Invalid format for --git (-g) argument. Expected: "Name Surname <email@example.com>"'
             );
             process.exit(1);
         }
     } else {
-        // No identity supplied, copy from current user's git config
+        // No identity supplied, copy from current user's git config.
+        // git config exits with non-zero when a key is not set, so each
+        // call is wrapped in its own try/catch.
         try {
-            const { stdout: nameStdout } = await execAsync(
+            const nameCmdResult = await execAsync(
                 "git config --global user.name"
             );
-            const { stdout: emailStdout } = await execAsync(
+            if (!TypeHelpers.isNullOrUndefined(nameCmdResult.stdout)) {
+                let trimmedName = nameCmdResult.stdout.trim();
+                if (trimmedName !== Empty.string()) {
+                    name = new Some(trimmedName);
+                }
+            }
+        } catch {
+            // user.name not set in current user's git config
+        }
+        try {
+            const emailCmdResult = await execAsync(
                 "git config --global user.email"
             );
-            name = OptionHelpers.ofObj(nameStdout.trim() || undefined);
-            email = OptionHelpers.ofObj(emailStdout.trim() || undefined);
-            if (name instanceof None || email instanceof None) {
-                console.error(
-                    "Current user's git config does not have user.name or user.email set."
-                );
-                process.exit(1);
+            if (!TypeHelpers.isNullOrUndefined(emailCmdResult.stdout)) {
+                let trimmedEmail = emailCmdResult.stdout.trim();
+                if (trimmedEmail !== Empty.string()) {
+                    email = new Some(trimmedEmail);
+                }
             }
-        } catch (e) {
-            console.error("Failed to read current user's git config:", e);
-            process.exit(1);
+        } catch {
+            // user.email not set in current user's git config
         }
     }
 
     if (name instanceof None || email instanceof None) {
-        console.error("Could not determine git name and email.");
+        console.error(
+            "Could not determine git name and/or email. " +
+                "Either set them in your global git config (git config --global user.name / user.email) " +
+                'or pass an explicit identity: --git "Name Surname <email@example.com>"'
+        );
         process.exit(1);
     }
 
-    // Apply to the agent user
+    return { name: name.value, email: email.value };
+}
+
+async function applyGitIdentity(identity: GitIdentity): Promise<void> {
     await runAsAgentUser(
-        `git config --global user.name "${name.value}" && git config --global user.email "${email.value}"`
+        `git config --global user.name "${identity.name}" && git config --global user.email "${identity.email}"`
     );
     console.log(
-        `Git config for '${AGENT_USER}' set to ${name.value} <${email.value}>`
+        `Git config for '${AGENT_USER}' set to ${identity.name} <${identity.email}>`
     );
 }
 
@@ -1171,10 +1205,43 @@ async function main() {
     const opts = program.opts();
 
     // Requirement checks (placed after parse so --help/--version still work)
+    const minGitVersionStr = `v${MIN_GIT_VERSION[0]}.${MIN_GIT_VERSION[1]}`;
     try {
-        await execAsync("which git");
-    } catch {
-        console.error("Error: git not found. Please install git.");
+        const gitVersionResult = await execAsync("git --version");
+        const gitVersionMatch = gitVersionResult.stdout
+            .trim()
+            .match(/git version (\d+)\.(\d+)/);
+        if (!gitVersionMatch) {
+            console.error(
+                `Error: could not determine git version. Please install git ${minGitVersionStr} or newer.`
+            );
+            process.exit(1);
+        }
+        const gitMajor = parseInt(gitVersionMatch[1], 10);
+        const gitMinor = parseInt(gitVersionMatch[2], 10);
+        if (
+            gitMajor < MIN_GIT_VERSION[0] ||
+            (gitMajor === MIN_GIT_VERSION[0] && gitMinor < MIN_GIT_VERSION[1])
+        ) {
+            console.error(
+                `Error: git version ${gitMajor}.${gitMinor} is too old. Please install git ${minGitVersionStr} or newer (required for wildcard support in git config).`
+            );
+            process.exit(1);
+        }
+    } catch (err: unknown) {
+        if (
+            err instanceof Error &&
+            (err.message.includes("not found") ||
+                err.message.includes("No such file"))
+        ) {
+            console.error(
+                `Error: git not found. Please install git ${minGitVersionStr} or newer.`
+            );
+        } else {
+            console.error(
+                `Error: could not run git. Please install git ${minGitVersionStr} or newer.`
+            );
+        }
         process.exit(1);
     }
     try {
@@ -1197,6 +1264,23 @@ async function main() {
 
     if (opts.paranoid) {
         paranoidMode = true;
+    }
+
+    // Parse and validate --git argument early, before any system changes
+    let resolvedGitIdentity: Option<GitIdentity> = Nothing;
+    if (opts.git) {
+        let identity: Option<string>;
+        if (opts.git === true) {
+            identity = Nothing;
+        } else if (typeof opts.git === "string") {
+            identity = new Some(opts.git);
+        } else {
+            console.error(
+                'Invalid --git argument. Expected a string in the form "Name Surname <email@example.com>" or no argument at all.'
+            );
+            process.exit(1);
+        }
+        resolvedGitIdentity = new Some(await resolveGitIdentity(identity));
     }
 
     if (opts.destroy) {
@@ -1259,19 +1343,8 @@ async function main() {
         await copySshKeys();
     }
 
-    if (opts.git) {
-        let identity: Option<string>;
-        if (opts.git === true) {
-            identity = Nothing;
-        } else if (typeof opts.git === "string") {
-            identity = new Some(opts.git);
-        } else {
-            console.error(
-                'Invalid --git argument. Expected a string in the form "Name Surname <email@example.com>" or no argument at all.'
-            );
-            process.exit(1);
-        }
-        await configureGit(identity);
+    if (resolvedGitIdentity instanceof Some) {
+        await applyGitIdentity(resolvedGitIdentity.value);
     }
 
     await updatePath();
