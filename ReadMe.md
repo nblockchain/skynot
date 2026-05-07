@@ -34,9 +34,10 @@ This repository is just a quick `npx` tool that helps you set up this ideal appr
 
 ## Launch Steps (performed every time you run the launcher script `spi`)
 
-1. Check that all directories of users are not readable or writable by `aidev` user.
-2. If any of the user directories are readable or writable, prompt to shield them.
-3. Launch Pi with the `aidev` user.
+1. Check that current directory is inside `~aidev/Work` or exit with error msg.
+2. Check that all directories of users are NOT readable or writable by `aidev` user.
+3. If any of the user directories are readable or writable, prompt to shield them.
+4. Launch Pi with the `aidev` user.
 
 
 ## Usage
