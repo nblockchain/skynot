@@ -104,6 +104,7 @@ function getShellRcFile(): string {
 
 const agentUserHome: string =
     os.platform() === "darwin" ? `/Users/${AGENT_USER}` : `/home/${AGENT_USER}`;
+const workDir: string = path.join(agentUserHome, "Work");
 
 function getPiInstallDir(): string {
     return `${agentUserHome}/pi`;
@@ -519,7 +520,6 @@ async function setupUmaskScriptForCurrentUser(): Promise<void> {
     const binDir = path.join(currentUserHome, "bin");
     const scriptPath = path.join(binDir, "ai-umask.sh");
     const rcPath = path.join(currentUserHome, rcFile);
-    const workDir = path.join(agentUserHome, "Work");
     const sourceLine = `[ -f ~/bin/ai-umask.sh ] && source ~/bin/ai-umask.sh`;
 
     // Ensure bin directory exists
@@ -588,6 +588,17 @@ async function createLauncherScript(piBinaryPath: string): Promise<void> {
     const scriptContent = `#!/bin/bash
 
 CURRENT_DIR=$PWD
+
+# Ensure CURRENT_DIR is inside workDir
+case "$CURRENT_DIR" in
+  ${workDir}|${workDir}/*)
+    ;; # OK
+  *)
+    echo "Error: Current directory ($CURRENT_DIR) is not inside ${workDir}."
+    echo "Please launch from a directory with proper permissions (e.g. ${workDir})."
+    exit 1
+    ;;
+esac
 
 echo "About to launch Pi..."
 
@@ -808,8 +819,6 @@ async function ensureExclusiveGroupMembership(user: string): Promise<void> {
 }
 
 async function setupWorkDir(): Promise<string> {
-    const workDir = path.join(agentUserHome, "Work");
-
     console.log(`Setting up group permissions...`);
     await askSudoPasswordAndRun(
         `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+rwxs ${agentUserHome}`,
