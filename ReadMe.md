@@ -48,20 +48,21 @@ npx skynot [options]
 
 The following command‑line flags are available:
 
-| Flag         | Alias  | Description                                                                       |
-|--------------|--------|-----------------------------------------------------------------------------------|
-|`--help`      | `-h`   | Show the help message with all available options.                                 |
-|`--auth`      | `-a`   | Prompt for AI model's credentials to add env var to script or cook auth.json file.|
-|`--extensions`| `-e`   | DEPRECATED: Use `spi install <extension>` instead, after install.                 |
-|`--git ["id"]`| `-g[i]`| Set git `user.name`/`user.email` for `aidev`. No arg: copies from current user.   |
-|              |        | With arg (e.g. `"Name Surname <user@example.com>"`): uses that instead.           |
-|`--npm`       | `-n`   | Install Pi using npm instead of tarball (likely to be slower though).             |
-|`--paranoid`  | `-p`   | Refrain from caching the sudo password; ask for it every time it is needed.       |
-|`--ssh`       | `-s`   | Copy SSH keys to the `aidev` user for git+ssh (& add GitHub to `known_hosts`).    |
-|`--update`    | `-u`   | Wipe any previous existing install of Pi and reinstall, to get the latest version.|
-|`--verbose`   | `-v`   | Show more output from install commands (useful for debugging/low-bandwidth).      |
-|`--version`   | `-V`   | Output the version number.                                                        |
-|`--destroy`   |`--BURN`| Delete the `aidev` user, all its data (in `$HOME`), and the `aiteam` group.       |
+| Flag           | Alias  | Description                                                                       |
+|----------------|--------|-----------------------------------------------------------------------------------|
+|`--help`        | `-h`   | Show the help message with all available options.                                 |
+|`--auth`        | `-a`   | Prompt for AI model's credentials to add env var to script or cook auth.json file.|
+|`--extensions`  | `-e`   | DEPRECATED: Use `spi install <extension>` instead, after install.                 |
+|`--git ["id"]`  | `-g[i]`| Set git `user.name`/`user.email` for `aidev`. No arg: copies from current user.   |
+|                |        | With arg (e.g. `"Name Surname <user@example.com>"`): uses that instead.           |
+|`--npm`         | `-n`   | Install Pi using npm instead of tarball (likely to be slower though).             |
+|`--context-lens`| `-c`   | Install context-lens and wrapper script `cpi` for launching pi with context-lens. |
+|`--paranoid`    | `-p`   | Refrain from caching the sudo password; ask for it every time it is needed.       |
+|`--ssh`         | `-s`   | Copy SSH keys to the `aidev` user for git+ssh (& add GitHub to `known_hosts`).    |
+|`--update`      | `-u`   | Wipe any previous existing install of Pi and reinstall, to get the latest version.|
+|`--verbose`     | `-v`   | Show more output from install commands (useful for debugging/low-bandwidth).      |
+|`--version`     | `-V`   | Output the version number.                                                        |
+|`--destroy`     |`--BURN`| Delete the `aidev` user, all its data (in `$HOME`), and the `aiteam` group.       |
 
 
 Please note, `-u` would technically not wipe or reinstall extensions, as they normally live in a different place (`.pi` subdir under `aidev` user's $HOME, and/or $NPM_CONFIG_PREFIX dir).
@@ -80,3 +81,4 @@ Please note, `-u` would technically not wipe or reinstall extensions, as they no
 * NPM's `npx` (install with `brew install npm` or `apt install npm`)
 * git v2.46 or newer (required for wildcard support in `git config --global safe.directory`)
 * `setfacl` command in Linux (to setup ACLs; in Ubuntu this command is provided by the `acl` APT package)
+* mitmproxy for using with context-lens (`-c` or `--context-lens` option)
