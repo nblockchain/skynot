@@ -1178,11 +1178,11 @@ async function main() {
         )
         .option(
             "-e, --extensions",
-            `DEPRECATED: This flag installs recommended extensions after installing Pi; rather use \`${LAUNCHER_SCRIPT_FILENAME} install <extension>\` instead.`
+            `DEPRECATED: This flag installs recommended extensions after installing Pi; rather use \`${LAUNCHER_SCRIPT_FILENAME} install <extension>\` instead, after install.`
         )
         .option(
             "-a, --auth",
-            `Configure provider authentication (creates auth.json for the '${AGENT_USER}' user)`
+            `Prompt for provider authentication details, which then are used to create an auth.json config file for the '${AGENT_USER}' user`
         )
         .option("-n, --npm", `Install Pi using npm instead of tarball`)
         .option(
@@ -1195,7 +1195,7 @@ async function main() {
         )
         .option(
             "-p, --paranoid",
-            `Never cache the sudo password; ask for it every time it is needed`
+            `Refrain from caching the sudo password; ask for it every time it is needed`
         )
         .option(
             "--BURN, --destroy",

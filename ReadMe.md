@@ -56,7 +56,7 @@ The following command‑line flags are available:
 |`--git ["id"]`| `-g[i]`| Set git `user.name`/`user.email` for `aidev`. No arg: copies from current user.   |
 |              |        | With arg (e.g. `"Name Surname <user@example.com>"`): uses that instead.           |
 |`--npm`       | `-n`   | Install Pi using npm instead of tarball (likely to be slower though).             |
-|`--paranoid`  | `-p`   | Never cache the sudo password; ask for it every time it is needed.                |
+|`--paranoid`  | `-p`   | Refrain from caching the sudo password; ask for it every time it is needed.       |
 |`--ssh`       | `-s`   | Copy SSH keys to the `aidev` user for git+ssh (& add GitHub to `known_hosts`).    |
 |`--update`    | `-u`   | Wipe any previous existing install of Pi and reinstall, to get the latest version.|
 |`--verbose`   | `-v`   | Show more output from install commands (useful for debugging/low-bandwidth).      |
