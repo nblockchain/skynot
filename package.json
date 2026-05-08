@@ -1,13 +1,14 @@
 {
   "name": "skynot",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Installer for pi-coding-agent embedded as a simple NPX tool to set up a user named `aidev`, and download Pi inside its $HOME (launcher script will be called `spi` instead of `pi`)",
   "main": "dist/index.js",
   "bin": {
     "skynot": "bin/skynot"
   },
   "scripts": {
-    "build": "npm install && npx tsc",
+    "dist": "mkdir -p bin && echo '#!/usr/bin/env node' > bin/skynot && echo \"require('../dist/index.js');\" >> bin/skynot && chmod +x bin/skynot",
+    "build": "npm install && npx tsc && npm run dist",
     "prepublishOnly": "npm run build",
     "format": "npm install && npx --no-install prettier --quote-props=consistent --write ./src/**/*.ts",
     "exec": "npm run build && node dist/index.js"
