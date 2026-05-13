@@ -1,7 +1,7 @@
 SkyNot [![NPM Version](https://img.shields.io/npm/v/skynot)](https://www.npmjs.com/package/skynot)
 ======
 
-Ever tempted to use or try out the infamous `pi-coding-agent` but got put off by its lack of out-of-the-box sandbox?
+Ever tempted to use or try out the infamous [pi-coding-agent](https://github.com/earendil-works/pi) but got put off by its lack of out-of-the-box sandbox?
 
 Some people use and/or develop guardrails extensions or poor-man sandboxing solutions; others just deploy it to their VPS so that any potential damage is contained.
 

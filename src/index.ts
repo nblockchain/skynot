@@ -24,8 +24,8 @@ import pkg from "../package.json";
 
 const execAsync = promisify(exec);
 
-const AGENT_PACKAGE = "@mariozechner/pi-coding-agent";
-const AGENT_GITHUB_REPO = "badlogic/pi-mono";
+const AGENT_NPM_PACKAGE = "@earendil-works/pi-coding-agent";
+const AGENT_GITHUB_REPO = "earendil-works/pi";
 const AGENT_USER = "aidev";
 const LAUNCHER_SCRIPT_FILENAME = "spi";
 const AGENT_GROUP_NAME = "aiteam";
@@ -376,15 +376,15 @@ async function addSudoersEntry(): Promise<void> {
 
 async function installAgentUsingNpm(verbose?: boolean): Promise<void> {
     const installDir = getPiInstallDir();
-    const [scope, name] = AGENT_PACKAGE.split("/");
+    const [scope, name] = AGENT_NPM_PACKAGE.split("/");
     const packageDir = path.join(installDir, "node_modules", scope, name);
     if (fs.existsSync(packageDir)) {
-        console.log(`${AGENT_PACKAGE} is already installed, skipping.`);
+        console.log(`${AGENT_NPM_PACKAGE} is already installed, skipping.`);
         return;
     }
-    console.log(`Installing ${AGENT_PACKAGE} into ${installDir}...`);
+    console.log(`Installing ${AGENT_NPM_PACKAGE} into ${installDir}...`);
     const npmLogLevel = verbose ? " --loglevel info" : "";
-    const cmd = `mkdir -p ${installDir} && cd ${installDir} && npm install${npmLogLevel} ${AGENT_PACKAGE}`;
+    const cmd = `mkdir -p ${installDir} && cd ${installDir} && npm install${npmLogLevel} ${AGENT_NPM_PACKAGE}`;
     await runAsAgentUser(cmd, verbose);
     console.log("Package installed.");
 }
