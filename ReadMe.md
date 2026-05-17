@@ -70,7 +70,7 @@ Please note, `-u` would technically not wipe or reinstall extensions, as they no
 ## Notes
 
 - The script runs many operations as the `aidev` user via `sudo`. It sets `npm_config_prefix` to `$HOME/.npm-global` to avoid permission errors when installing extensions from NPM.
-- To test locally (directly from sources instead of using `npx`), use `npm run exec -- [options]` (e.g. `npm run exec -- -e`).
+- To test locally (directly from sources instead of using `npx`), use `npm run exec -- [options]` (e.g. `npm run exec -- -p`).
 
 
 ## Requirements
