@@ -1165,29 +1165,29 @@ async function main() {
 
     const program = new Command();
     program
-        .version(pkg.version, "-V, --version", "Output the version number")
+        .version(pkg.version, "-V, --version", "Output the version number.")
         .description(pkg.description)
-        .helpOption("-h, --help", "Show this help message")
+        .helpOption("-h, --help", "Show this help message.")
         .option(
             "-v, --verbose",
-            "Show detailed output from install commands (useful for slow connections or debugging)"
+            "Show detailed output from install commands (useful for slow connections or debugging skynot)."
         )
         .option(
             "-u, --update",
-            `Wipe and reinstall Pi, to get the latest version`
+            `Wipe and reinstall Pi, to get the latest version (everything else should remain intact, e.g. Pi's extensions/settings/sessions/... which live in ${AGENT_USER}'s $HOME/.pi/agent/ directory, etc.).`
         )
         .option(
             "-e, --extensions",
-            `DEPRECATED: This flag installs recommended extensions after installing Pi; rather use \`${LAUNCHER_SCRIPT_FILENAME} install <extension>\` instead, after install.`
+            `DEPRECATED: rather use \`${LAUNCHER_SCRIPT_FILENAME} install <extension>\` instead, after install.`
         )
         .option(
             "-a, --auth",
-            `Prompt for provider authentication details, which then are used to create an auth.json config file for the '${AGENT_USER}' user`
+            `Prompt for provider authentication details, which then are used to create an auth.json config file for the '${AGENT_USER}' user.`
         )
-        .option("-n, --npm", `Install Pi using npm instead of tarball`)
+        .option("-n, --npm", `Install Pi using npm instead of tarball.`)
         .option(
             "-s, --ssh",
-            `Copy current user's SSH keys to the '${AGENT_USER}' user for git SSH access (and add GitHub to known_hosts)`
+            `Copy current user's SSH keys to the '${AGENT_USER}' user for git SSH access (and add GitHub to known_hosts).`
         )
         .option(
             "-g, --git [identity]",
@@ -1195,11 +1195,11 @@ async function main() {
         )
         .option(
             "-p, --paranoid",
-            `Refrain from caching the sudo password; ask for it every time it is needed`
+            `Refrain from caching the sudo password; ask for it every time it is needed.`
         )
         .option(
             "--BURN, --destroy",
-            `Destroy the '${AGENT_USER}' user, their home directory (${agentUserHome}), and the '${AGENT_GROUP_NAME}' group. Requires typing 'DELETE' to confirm.`
+            `Destroy the '${AGENT_USER}' user, their home directory (${agentUserHome}), and the '${AGENT_GROUP_NAME}' group. Requires interactive user confirmation.`
         );
     program.parse(process.argv);
     const opts = program.opts();
