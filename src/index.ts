@@ -578,7 +578,10 @@ set_dir_umask
     console.log(`${rcFile} updated with umask script.`);
 }
 
-async function createLauncherScript(piBinaryPath: string): Promise<void> {
+async function createLauncherScript(
+    piBinaryPath: string,
+    apiKeyExport: Option<{ name: string; value: string }> = Nothing
+): Promise<void> {
     const currentUserHome = os.homedir();
     const binDir = path.join(currentUserHome, "bin");
     const scriptPath = path.join(binDir, LAUNCHER_SCRIPT_FILENAME);
@@ -592,6 +595,11 @@ async function createLauncherScript(piBinaryPath: string): Promise<void> {
 
     const platform = os.platform();
     const homeBase = platform === "darwin" ? "/Users" : "/home";
+
+    const exportPrefix =
+        apiKeyExport instanceof Some
+            ? `export ${apiKeyExport.value.name}=${apiKeyExport.value.value} && `
+            : Empty.string();
 
     // Write the launcher shell script with permission checks
     const scriptContent = `#!/bin/bash
@@ -661,7 +669,7 @@ if [ \${#EXPOSED_DIRS[@]} -gt 0 ]; then
   echo ""
 fi
 
-FULL_SUDO_CMD="export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${piBinaryPath} $@"
+FULL_SUDO_CMD="${exportPrefix}export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${piBinaryPath} $@"
 echo "Launching Pi with ${AGENT_USER} user (sudo is required to impersonate '${AGENT_USER}' user)..."
 exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"
 `;
@@ -908,37 +916,85 @@ async function launchAgent(): Promise<void> {
     });
 }
 
-async function configureAuth(): Promise<void> {
-    const providerName = await askQuestion("Enter provider name: ");
-    if (!providerName.trim()) {
-        console.error(
-            "Provider name cannot be empty. Skipping auth configuration."
+async function configureAuth(): Promise<
+    Option<{ name: string; value: string }>
+> {
+    while (true) {
+        const input = await askQuestion(
+            "Enter provider name (lowercase) or auth env var name (uppercase): "
         );
-        return;
-    }
-    const apiKey = await askQuestion("Enter API key: ");
-    if (!apiKey.trim()) {
-        console.error("API key cannot be empty. Skipping auth configuration.");
-        return;
-    }
+        const trimmed = input.trim();
 
-    const authData = {
-        [providerName.trim()]: {
-            type: "api_key",
-            key: apiKey.trim(),
-        },
-    };
+        if (trimmed === Empty.string()) {
+            console.error(
+                "Input cannot be empty. Skipping auth configuration."
+            );
+            return Nothing;
+        }
 
-    const agentDir = path.join(agentUserHome, ".pi", "agent");
-    const authFilePath = path.join(agentDir, "auth.json");
-    const authJson = JSON.stringify(authData, null, 2);
+        const hasLowercase = /[a-z]/.test(trimmed);
+        const hasUppercase = /[A-Z]/.test(trimmed);
 
-    console.log(`Writing auth.json to ${agentDir}...`);
-    await runAsAgentUser(`mkdir -p ${agentDir} && cat > ${authFilePath} << 'SKYNOT_AUTH_EOF'
+        if (
+            (hasLowercase && hasUppercase) ||
+            (!hasLowercase && !hasUppercase)
+        ) {
+            console.error(
+                "Error: input must be either all lowercase (provider name) or all uppercase (env var name). Please try again."
+            );
+            continue;
+        }
+
+        if (hasLowercase) {
+            // Provider name mode: create auth.json
+            const apiKey = await askQuestion("Enter API key: ");
+            if (apiKey.trim() === Empty.string()) {
+                console.error(
+                    "API key cannot be empty. Skipping auth configuration."
+                );
+                return Nothing;
+            }
+
+            const authData = {
+                [trimmed]: {
+                    type: "api_key",
+                    key: apiKey.trim(),
+                },
+            };
+
+            const agentDir = path.join(agentUserHome, ".pi", "agent");
+            const authFilePath = path.join(agentDir, "auth.json");
+            const authJson = JSON.stringify(authData, null, 2);
+
+            console.log(`Writing auth.json to ${agentDir}...`);
+            await runAsAgentUser(`mkdir -p ${agentDir} && cat > ${authFilePath} << 'SKYNOT_AUTH_EOF'
 ${authJson}
 SKYNOT_AUTH_EOF
 chmod 600 ${authFilePath}`);
-    console.log("Auth configuration saved.");
+            console.log("Auth configuration saved.");
+            return Nothing;
+        }
+
+        // Uppercase only: env var mode
+        if (!trimmed.endsWith("_API_KEY")) {
+            const answer = await askQuestion(
+                `"${trimmed}" does not end with "_API_KEY". Did you misspell the env var name? (y/n, or press Enter to retry): `
+            );
+            if (answer.trim().toLowerCase() !== "y") {
+                continue;
+            }
+        }
+
+        const apiKey = await askQuestion("Enter API key: ");
+        if (apiKey.trim() === Empty.string()) {
+            console.error(
+                "API key cannot be empty. Skipping auth configuration."
+            );
+            return Nothing;
+        }
+
+        return new Some({ name: trimmed, value: apiKey.trim() });
+    }
 }
 
 async function copySshKeys(): Promise<void> {
@@ -1335,10 +1391,6 @@ async function main() {
         await installExtensions(piBinaryPath, opts.verbose);
     }
 
-    if (opts.auth) {
-        await configureAuth();
-    }
-
     if (opts.ssh) {
         await copySshKeys();
     }
@@ -1350,7 +1402,13 @@ async function main() {
     await updatePath();
     await updateAgentUserUmask();
     await setupUmaskScriptForCurrentUser();
-    await createLauncherScript(piBinaryPath);
+
+    let apiKeyExport: Option<{ name: string; value: string }> = Nothing;
+    if (opts.auth) {
+        apiKeyExport = await configureAuth();
+    }
+
+    await createLauncherScript(piBinaryPath, apiKeyExport);
 
     const workDir = await setupWorkDir();
     console.log(
