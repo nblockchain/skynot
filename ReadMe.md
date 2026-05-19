@@ -51,7 +51,7 @@ The following command‑line flags are available:
 | Flag         | Alias  | Description                                                                       |
 |--------------|--------|-----------------------------------------------------------------------------------|
 |`--help`      | `-h`   | Show the help message with all available options.                                 |
-|`--auth`      | `-a`   | Ask about auth details (provider name and API key) to cook an `auth.json` file.   |
+|`--auth`      | `-a`   | Prompt for AI model's credentials to add env var to script or cook auth.json file.|
 |`--extensions`| `-e`   | DEPRECATED: Use `spi install <extension>` instead, after install.                 |
 |`--git ["id"]`| `-g[i]`| Set git `user.name`/`user.email` for `aidev`. No arg: copies from current user.   |
 |              |        | With arg (e.g. `"Name Surname <user@example.com>"`): uses that instead.           |

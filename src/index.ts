@@ -1238,7 +1238,7 @@ async function main() {
         )
         .option(
             "-a, --auth",
-            `Prompt for provider authentication details, which then are used to create an auth.json config file for the '${AGENT_USER}' user.`
+            `Prompt for AI model's credentials to add env var to launcher script, or to create an auth.json file.`
         )
         .option("-n, --npm", `Install Pi using npm instead of tarball.`)
         .option(
