@@ -426,13 +426,16 @@ async function checkWget(): Promise<void> {
     }
 }
 
-async function installAgentFromTarball(verbose?: boolean): Promise<void> {
+async function installAgentFromTarball(
+    update: boolean,
+    verbose?: boolean
+): Promise<void> {
     const piInstallDir = getPiInstallDir();
     const platform = os.platform();
     const arch = os.arch();
     const tarballName = `pi-${platform}-${arch}.tar.gz`;
 
-    if (fs.existsSync(piInstallDir)) {
+    if (!update && fs.existsSync(piInstallDir)) {
         console.log(`Pi is already installed, skipping.`);
         return;
     }
@@ -468,6 +471,10 @@ async function installAgentFromTarball(verbose?: boolean): Promise<void> {
         wgetCommandArgs.push("--quiet");
     }
     await runCommand("wget", wgetCommandArgs, wgetProcessOptions);
+
+    if (update) {
+        await wipeInstallation();
+    }
 
     const tarVerboseFlag = verbose ? "--verbose" : "";
     const cmd = `cd ${agentUserHome} && tar --extract --gzip ${tarVerboseFlag} --file ${tarballPath}`;
@@ -1373,17 +1380,16 @@ async function main() {
     // Ensure the current user can switch to the agent user without a password
     await addSudoersEntry();
 
-    if (opts.update) {
-        await wipeInstallation();
-    }
-
     const installDir = getPiInstallDir();
     let piBinaryPath: string;
     if (opts.npm) {
+        if (opts.update) {
+            await wipeInstallation();
+        }
         await installAgentUsingNpm(opts.verbose);
         piBinaryPath = `${installDir}/node_modules/.bin/pi`;
     } else {
-        await installAgentFromTarball(opts.verbose);
+        await installAgentFromTarball(opts.update, opts.verbose);
         piBinaryPath = `${installDir}/pi`;
     }
 
