@@ -1,6 +1,6 @@
 {
   "name": "skynot",
-  "version": "0.0.10",
+  "version": "0.0.753",
   "description": "Installer for pi-coding-agent embedded as a simple NPX tool to set up a user named `aidev`, and download Pi inside its $HOME (launcher script will be called `spi` instead of `pi`)",
   "main": "dist/index.js",
   "bin": {
