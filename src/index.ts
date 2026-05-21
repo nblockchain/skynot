@@ -1014,11 +1014,34 @@ async function buildContextLens(
 ): Promise<void> {
     console.log("Building context-lens...");
     const commandOptions = getProcessOptions(verbose);
-    for (const dir of [contextLensDir, path.join(contextLensDir, "ui")]) {
-        commandOptions.cwd = dir;
-        await runCommand("npm", ["install"], commandOptions);
-        await runCommand("npm", ["run", "build"], commandOptions);
+
+    let usePnpm = false;
+    try {
+        await execAsync("which pnpm");
+        usePnpm = true;
+    } catch {
+        // pnpm is not available
     }
+
+    if (usePnpm) {
+        for (const dir of [contextLensDir, path.join(contextLensDir, "ui")]) {
+            commandOptions.cwd = dir;
+            await runCommand("pnpm", ["install"], commandOptions);
+            await runCommand("pnpm", ["run", "build"], commandOptions);
+        }
+    } else {
+        commandOptions.cwd = contextLensDir;
+        await runCommand("npm", ["install"], commandOptions);
+        await runCommand("npm", ["run", "generate:version"], commandOptions);
+        await runCommand("npm", ["run", "generate:types"], commandOptions);
+        await runCommand("npx", ["tsc"], commandOptions);
+
+        commandOptions.cwd = path.join(contextLensDir, "ui");
+        await runCommand("npm", ["install"], commandOptions);
+        await runCommand("npx", ["vue-tsc", "-b"], commandOptions);
+        await runCommand("npx", ["vite", "build"], commandOptions);
+    }
+
     console.log("context-lens built.");
 }
 
