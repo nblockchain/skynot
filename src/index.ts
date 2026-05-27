@@ -1078,17 +1078,20 @@ async function installContextLens(
 
     if (fs.existsSync(contextLensDir)) {
         console.log("context-lens already installed.");
-        if (update) {
-            console.log("Updating context-lens...");
-            await runCommand("git", ["fetch"], commandOptionsForContextLensDir);
-            await runCommand(
-                "git",
-                ["reset", "--hard", "origin/main"],
-                commandOptionsForContextLensDir
-            );
-            await applyPatches();
+        const cliPath = path.join(contextLensDir, "dist", "cli.js");
+        if (update || !fs.existsSync(cliPath)) {
+            console.log("Updating or building missing context-lens distribution...");
+            if (update) {
+                await runCommand("git", ["fetch"], commandOptionsForContextLensDir);
+                await runCommand(
+                    "git",
+                    ["reset", "--hard", "origin/main"],
+                    commandOptionsForContextLensDir
+                );
+                await applyPatches();
+            }
             await buildContextLens(contextLensDir, verbose);
-            console.log("context-lens updated.");
+            console.log("context-lens built successfully.");
         }
     } else {
         console.log("Installing context-lens...");
