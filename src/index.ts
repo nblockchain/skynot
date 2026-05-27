@@ -764,7 +764,17 @@ async function createPiLauncherScript(
 ): Promise<void> {
     const exportPrefix = getExportPrefix(apiKeyExport);
     const command = `
-FULL_SUDO_CMD="${exportPrefix}export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${piBinaryPath} $@"
+PROXY_ENV=""
+[ -n "$https_proxy" ] && PROXY_ENV="$PROXY_ENV export https_proxy=\\"$https_proxy\\" &&"
+[ -n "$HTTPS_PROXY" ] && PROXY_ENV="$PROXY_ENV export HTTPS_PROXY=\\"$HTTPS_PROXY\\" &&"
+[ -n "$NPM_CONFIG_HTTPS_PROXY" ] && PROXY_ENV="$PROXY_ENV export NPM_CONFIG_HTTPS_PROXY=\\"$NPM_CONFIG_HTTPS_PROXY\\" &&"
+[ -n "$WSS_PROXY" ] && PROXY_ENV="$PROXY_ENV export WSS_PROXY=\\"$WSS_PROXY\\" &&"
+[ -n "$NODE_USE_ENV_PROXY" ] && PROXY_ENV="$PROXY_ENV export NODE_USE_ENV_PROXY=\\"$NODE_USE_ENV_PROXY\\" &&"
+[ -n "$SSL_CERT_FILE" ] && PROXY_ENV="$PROXY_ENV export SSL_CERT_FILE=\\"$SSL_CERT_FILE\\" &&"
+[ -n "$NODE_EXTRA_CA_CERTS" ] && PROXY_ENV="$PROXY_ENV export NODE_EXTRA_CA_CERTS=\\"$NODE_EXTRA_CA_CERTS\\" &&"
+[ -n "$REQUESTS_CA_BUNDLE" ] && PROXY_ENV="$PROXY_ENV export REQUESTS_CA_BUNDLE=\\"$REQUESTS_CA_BUNDLE\\" &&"
+
+FULL_SUDO_CMD="\${exportPrefix}\$PROXY_ENV export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${piBinaryPath} \$@"
 echo "Launching Pi with ${AGENT_USER} user (sudo is required to impersonate '${AGENT_USER}' user)..."
 exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"`;
     await createLauncherScript(command, LAUNCHER_SCRIPT_FILENAME, apiKeyExport);
