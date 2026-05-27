@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
+      contents: write
 
       # CRITICAL for provenance
       id-token: write
@@ -23,6 +23,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Verify version matches tag
         run: |
@@ -58,7 +61,51 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Generate Changelog
+        run: |
+          # Since package.json already has the target version and we are on the tag commit,
+          # conventional-changelog correctly detects the latest tag and generates exactly 1 release
+          # from the previous tag up to this current one.
+          npx --package conventional-changelog-cli conventional-changelog --preset angular --release-count 1 > CHANGELOG_RELEASE.md
+          cat CHANGELOG_RELEASE.md
+
+      - name: Verify CHANGELOG.md matches
+        run: |
+          # Verify that the generated CHANGELOG_RELEASE.md block matches what we expect
+          echo "Comparing release notes..."
+          # Since the commit has been tagged, CHANGELOG.md should already contain the latest release notes at the top.
+          # Let's verify that the generated release notes match the top of CHANGELOG.md.
+          # Since CHANGELOG.md has headers and compare links, a simple check can verify if CHANGELOG_RELEASE.md content is a prefix of CHANGELOG.md.
+          # Or, the release script can write the exact release notes to a specific file or we can compare them.
+          # Let's keep it simple: we can check if CHANGELOG_RELEASE.md is a sub-string or at the start of CHANGELOG.md.
+          # To be very robust:
+          head -n "$(wc --lines < CHANGELOG_RELEASE.md)" CHANGELOG.md > CHANGELOG_TOP.md
+          if ! diff -q CHANGELOG_RELEASE.md CHANGELOG_TOP.md >/dev/null; then
+            echo "ERROR: CHANGELOG.md does not have the expected release notes at the top!"
+            echo "Expected:"
+            cat CHANGELOG_RELEASE.md
+            echo "But got at the top of CHANGELOG.md:"
+            cat CHANGELOG_TOP.md
+            exit 1
+          fi
+          echo "✓ CHANGELOG.md verified!"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ env.HEAD_TAG }}" \
+            --title "${{ env.HEAD_TAG }}" \
+            --notes-file CHANGELOG_RELEASE.md
+
       - name: Publish skynot to npm
-        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! npm publish --provenance --access public; then
+            echo "NPM publish failed! Rolling back GitHub release..."
+            gh release delete "${{ env.HEAD_TAG }}" --yes || true
+            exit 1
+          fi
+
