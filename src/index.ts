@@ -774,13 +774,13 @@ async function createContextLensLauncherScript(
     contextLensDir: string,
     apiKeyExport: Option<{ name: string; value: string }> = Nothing
 ): Promise<void> {
-    const cmd = `node ${contextLensDir}/dist/cli.js --mitm pi`;
+    const cmd = `node ${contextLensDir}/dist/cli.js --mitm spi`;
     const exportPrefix = getExportPrefix(apiKeyExport);
     const command = `
-FULL_SUDO_CMD="${exportPrefix}export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${cmd} $@"
-echo "Launching Pi using context-lens warapper with ${AGENT_USER} user (sudo is required to impersonate '${AGENT_USER}' user)..."
+echo "Launching Pi using context-lens wrapper..."
 echo "The context-lens UI is available at http://localhost:4041/"
-exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"`;
+export PATH=$PATH:$HOME/bin
+${exportPrefix}cd "$CURRENT_DIR" && ${cmd} "$@"`;
     await createLauncherScript(
         command,
         CONTEXT_LENS_SCRIPT_FILENAME,
