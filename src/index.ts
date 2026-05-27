@@ -1072,7 +1072,12 @@ async function installContextLens(
     );
 
     async function applyPatches() {
-        const patchesDir = path.join(__dirname, "..", "patches", "context-lens");
+        const patchesDir = path.join(
+            __dirname,
+            "..",
+            "patches",
+            "context-lens"
+        );
         const patchFiles = fs
             .readdirSync(patchesDir)
             .filter((fileName) => fileName.endsWith(".patch"));
@@ -1093,9 +1098,15 @@ async function installContextLens(
         const cliPath = path.join(contextLensDir, "dist", "cli.js");
         const uiDistPath = path.join(contextLensDir, "ui", "dist");
         if (update || !fs.existsSync(cliPath) || !fs.existsSync(uiDistPath)) {
-            console.log("Updating or building missing context-lens distribution...");
+            console.log(
+                "Updating or building missing context-lens distribution..."
+            );
             if (update) {
-                await runCommand("git", ["fetch"], commandOptionsForContextLensDir);
+                await runCommand(
+                    "git",
+                    ["fetch"],
+                    commandOptionsForContextLensDir
+                );
                 await runCommand(
                     "git",
                     ["reset", "--hard", "origin/main"],
