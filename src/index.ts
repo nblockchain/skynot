@@ -774,7 +774,7 @@ async function createContextLensLauncherScript(
     contextLensDir: string,
     apiKeyExport: Option<{ name: string; value: string }> = Nothing
 ): Promise<void> {
-    const cmd = `node ${contextLensDir}/dist/cli.js --mitm spi`;
+    const cmd = `HOME=${agentUserHome} node ${contextLensDir}/dist/cli.js --mitm spi`;
     const exportPrefix = getExportPrefix(apiKeyExport);
     const command = `
 echo "Launching Pi using context-lens wrapper..."
