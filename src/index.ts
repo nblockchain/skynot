@@ -1038,8 +1038,7 @@ async function buildContextLens(
 
         commandOptions.cwd = path.join(contextLensDir, "ui");
         await runCommand("npm", ["install"], commandOptions);
-        await runCommand("npx", ["vue-tsc", "-b"], commandOptions);
-        await runCommand("npx", ["vite", "build"], commandOptions);
+        await runCommand("npm", ["run", "build"], commandOptions);
     }
 
     console.log("context-lens built.");
@@ -1079,7 +1078,8 @@ async function installContextLens(
     if (fs.existsSync(contextLensDir)) {
         console.log("context-lens already installed.");
         const cliPath = path.join(contextLensDir, "dist", "cli.js");
-        if (update || !fs.existsSync(cliPath)) {
+        const uiDistPath = path.join(contextLensDir, "ui", "dist");
+        if (update || !fs.existsSync(cliPath) || !fs.existsSync(uiDistPath)) {
             console.log("Updating or building missing context-lens distribution...");
             if (update) {
                 await runCommand("git", ["fetch"], commandOptionsForContextLensDir);
