@@ -33,6 +33,35 @@ const DEFAULT_UMASK = "007";
 const MIN_NODE_MAJOR_VERSION = 22;
 const MIN_GIT_VERSION = [2, 46];
 
+enum UnixBasedOS {
+    Linux,
+    MacOS,
+}
+
+class WindowsNotSupportedError extends Error {}
+
+function checkOS(): UnixBasedOS {
+    const platform = os.platform();
+    if (platform === "win32") {
+        throw new WindowsNotSupportedError(
+            "Windows is not supported. Please run skynot on Linux or macOS."
+        );
+    }
+    return platform === "darwin" ? UnixBasedOS.MacOS : UnixBasedOS.Linux;
+}
+
+const CURRENT_OS = (() => {
+    try {
+        return checkOS();
+    } catch (err: any) {
+        if (err instanceof WindowsNotSupportedError) {
+            console.error(err.message);
+            process.exit(1);
+        }
+        throw err;
+    }
+})();
+
 type GithubApiReleasesJson = {
     assets: {
         name: string;
@@ -104,15 +133,16 @@ function runCommand(
 }
 
 function getShellRcFile(): string {
-    const platform = os.platform();
-    if (platform === "darwin") {
+    if (CURRENT_OS === UnixBasedOS.MacOS) {
         return ".zshrc";
     }
     return ".bashrc";
 }
 
 const agentUserHome: string =
-    os.platform() === "darwin" ? `/Users/${AGENT_USER}` : `/home/${AGENT_USER}`;
+    CURRENT_OS === UnixBasedOS.MacOS
+        ? `/Users/${AGENT_USER}`
+        : `/home/${AGENT_USER}`;
 const workDir: string = path.join(agentUserHome, "Work");
 
 function getPiInstallDir(): string {
@@ -292,8 +322,7 @@ async function userExists(username: string): Promise<boolean> {
 
 async function groupExists(groupName: string): Promise<boolean> {
     try {
-        const platform = os.platform();
-        if (platform === "darwin") {
+        if (CURRENT_OS === UnixBasedOS.MacOS) {
             await execAsync(`dscl . -read /Groups/${groupName}`);
         } else {
             await execAsync(`getent group ${groupName}`);
@@ -311,8 +340,7 @@ async function ensureAgentUserExists(): Promise<void> {
         return;
     }
     console.log(`Creating user "${AGENT_USER}"...`);
-    const platform = os.platform();
-    if (platform === "darwin") {
+    if (CURRENT_OS === UnixBasedOS.MacOS) {
         await askSudoPasswordAndRun(
             `sysadminctl -addUser ${AGENT_USER} -home ${agentUserHome} -shell /bin/zsh`,
             "required to create user"
@@ -600,8 +628,7 @@ async function createLauncherScript(
         fs.mkdirSync(binDir, { recursive: true });
     }
 
-    const platform = os.platform();
-    const homeBase = platform === "darwin" ? "/Users" : "/home";
+    const homeBase = CURRENT_OS === UnixBasedOS.MacOS ? "/Users" : "/home";
 
     const exportPrefix =
         apiKeyExport instanceof Some
@@ -753,9 +780,8 @@ async function ensureAgentGroupExists(): Promise<void> {
         return;
     }
     console.log(`Creating group "${AGENT_GROUP_NAME}"...`);
-    const platform = os.platform();
     const reason = `required to create ${AGENT_GROUP_NAME} group`;
-    if (platform === "darwin") {
+    if (CURRENT_OS === UnixBasedOS.MacOS) {
         await createMacOsGroup(reason, 0);
     } else {
         await askSudoPasswordAndRun(`groupadd ${AGENT_GROUP_NAME}`, reason);
@@ -764,7 +790,6 @@ async function ensureAgentGroupExists(): Promise<void> {
 }
 
 async function ensureUserInGroup(user: string): Promise<void> {
-    const platform = os.platform();
     try {
         const { stdout } = await execAsync(`id -nG ${user}`);
         if (stdout.split(/\s+/).includes(AGENT_GROUP_NAME)) {
@@ -777,7 +802,7 @@ async function ensureUserInGroup(user: string): Promise<void> {
         // user might not exist yet or id failed, try to add anyway
     }
     console.log(`Adding user "${user}" to group "${AGENT_GROUP_NAME}"...`);
-    if (platform === "darwin") {
+    if (CURRENT_OS === UnixBasedOS.MacOS) {
         await askSudoPasswordAndRun(
             `dseditgroup -o edit -a ${user} -t user ${AGENT_GROUP_NAME}`,
             `required to add ${user} to ${AGENT_GROUP_NAME} group`
@@ -792,13 +817,29 @@ async function ensureUserInGroup(user: string): Promise<void> {
 }
 
 async function ensureExclusiveGroupMembership(user: string): Promise<void> {
-    const platform = os.platform();
     try {
         const { stdout } = await execAsync(`id -nG ${user}`);
+        // In macOS, these are special default groups. Even if you remove the user
+        // from them, it either fails silently or they get automatically re-added.
+        // Thus, we must ignore them here.
+        const MAC_OS_DEFAULT_GROUPS = [
+            "everyone",
+            "localaccounts",
+            "com.apple.sharepoint.group.1",
+            "_lpoperator",
+        ];
+
         const groups = stdout
             .trim()
             .split(/\s+/)
-            .filter((g) => g !== AGENT_GROUP_NAME);
+            .filter(
+                (g) =>
+                    g !== AGENT_GROUP_NAME &&
+                    !(
+                        CURRENT_OS === UnixBasedOS.MacOS &&
+                        MAC_OS_DEFAULT_GROUPS.includes(g)
+                    )
+            );
         if (groups.length === 0) {
             console.log(
                 `User "${user}" already belongs exclusively to group "${AGENT_GROUP_NAME}".`
@@ -808,7 +849,7 @@ async function ensureExclusiveGroupMembership(user: string): Promise<void> {
         console.log(
             `Removing user "${user}" from extra groups: ${groups.join(", ")}...`
         );
-        if (platform === "darwin") {
+        if (CURRENT_OS === UnixBasedOS.MacOS) {
             // macOS: remove from each extra group individually and set primary group
             for (const group of groups) {
                 try {
@@ -848,8 +889,7 @@ async function setupWorkDir(): Promise<string> {
         `chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${agentUserHome} && chmod g+rwxs ${agentUserHome}`,
         `required to set ${AGENT_USER}'s home to belong to ${AGENT_GROUP_NAME} group`
     );
-    const platform = os.platform();
-    if (platform === "darwin") {
+    if (CURRENT_OS === UnixBasedOS.MacOS) {
         await askSudoPasswordAndRun(
             `ls -led ${agentUserHome} | grep -q "group:${AGENT_GROUP_NAME}" || chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${agentUserHome}`,
             "required to ensure ACL on home directory for group write inheritance"
@@ -867,7 +907,7 @@ async function setupWorkDir(): Promise<string> {
         `mkdir -p ${workDir} && chown ${AGENT_USER}:${AGENT_GROUP_NAME} ${workDir} && chmod g+rwxs ${workDir}`,
         "required to set up work directory"
     );
-    if (platform === "darwin") {
+    if (CURRENT_OS === UnixBasedOS.MacOS) {
         await askSudoPasswordAndRun(
             `ls -led ${workDir} | grep -q "group:${AGENT_GROUP_NAME}" || chmod +a "group:${AGENT_GROUP_NAME} allow list,add_file,search,add_subdirectory,file_inherit,directory_inherit" ${workDir}`,
             "required to ensure ACL on work directory for group write inheritance"
@@ -1136,8 +1176,6 @@ async function wipeInstallation(): Promise<void> {
 }
 
 async function destroyInstallation(): Promise<void> {
-    const platform = os.platform();
-
     console.log("\n=== DESTROY MODE ===");
     console.log("This will permanently DELETE:");
     console.log(`  - The '${AGENT_USER}' user`);
@@ -1161,7 +1199,7 @@ async function destroyInstallation(): Promise<void> {
     // Delete the user first (which also removes the home directory on Linux with -r, and on macOS sysadminctl removes the home)
     console.log(`Deleting user '${AGENT_USER}'...`);
     if (await userExists(AGENT_USER)) {
-        if (platform === "darwin") {
+        if (CURRENT_OS === UnixBasedOS.MacOS) {
             // sysadminctl deletes the user and its home directory by default
             await askSudoPasswordAndRun(
                 `sysadminctl -deleteUser ${AGENT_USER}`,
@@ -1188,7 +1226,7 @@ async function destroyInstallation(): Promise<void> {
     // Delete the group
     console.log(`Deleting group '${AGENT_GROUP_NAME}'...`);
     if (await groupExists(AGENT_GROUP_NAME)) {
-        if (platform === "darwin") {
+        if (CURRENT_OS === UnixBasedOS.MacOS) {
             await askSudoPasswordAndRun(
                 `dscl . -delete /Groups/${AGENT_GROUP_NAME}`,
                 reason
@@ -1220,12 +1258,6 @@ async function destroyInstallation(): Promise<void> {
 }
 
 async function main() {
-    if (os.platform() === "win32") {
-        throw new Error(
-            "Windows is not supported. Please run skynot on Linux or macOS."
-        );
-    }
-
     const program = new Command();
     program
         .version(pkg.version, "-V, --version", "Output the version number.")
@@ -1313,7 +1345,7 @@ async function main() {
         console.error("Error: npm not found. Please install npm.");
         process.exit(1);
     }
-    if (os.platform() !== "darwin") {
+    if (CURRENT_OS !== UnixBasedOS.MacOS) {
         try {
             await execAsync("which setfacl");
         } catch {
