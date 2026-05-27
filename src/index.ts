@@ -50,6 +50,7 @@ function checkOS(): UnixBasedOS {
     return platform === "darwin" ? UnixBasedOS.MacOS : UnixBasedOS.Linux;
 }
 
+// used IIFE pattern (lambda style) in order to use const+trycatch
 const CURRENT_OS = (() => {
     try {
         return checkOS();
