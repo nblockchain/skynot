@@ -764,6 +764,9 @@ async function createPiLauncherScript(
 ): Promise<void> {
     const exportPrefix = getExportPrefix(apiKeyExport);
     const command = `
+# Proxy environment variables forwarded to the agent's sudo environment.
+# Extracted from context-lens to ensure MITM capture works correctly for the child process.
+# See: https://github.com/larsderidder/context-lens/blob/main/src/cli-utils.ts
 PROXY_ENV=""
 [ -n "$https_proxy" ] && PROXY_ENV="$PROXY_ENV export https_proxy=\\"$https_proxy\\" &&"
 [ -n "$HTTPS_PROXY" ] && PROXY_ENV="$PROXY_ENV export HTTPS_PROXY=\\"$HTTPS_PROXY\\" &&"
