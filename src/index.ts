@@ -795,10 +795,18 @@ async function ensureExclusiveGroupMembership(user: string): Promise<void> {
     const platform = os.platform();
     try {
         const { stdout } = await execAsync(`id -nG ${user}`);
+        // In macOS, "everyone" is a special default group. Even if you remove the user from it,
+        // it either fails silenty or gets automatically re-added. Thus, we must ignore it here.
+        const MAC_OS_EVERYONE_GROUP = "everyone";
+
         const groups = stdout
             .trim()
             .split(/\s+/)
-            .filter((g) => g !== AGENT_GROUP_NAME);
+            .filter(
+                (g) =>
+                    g !== AGENT_GROUP_NAME &&
+                    !(platform === "darwin" && g === MAC_OS_EVERYONE_GROUP)
+            );
         if (groups.length === 0) {
             console.log(
                 `User "${user}" already belongs exclusively to group "${AGENT_GROUP_NAME}".`
