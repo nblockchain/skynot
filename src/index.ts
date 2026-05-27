@@ -795,9 +795,15 @@ async function ensureExclusiveGroupMembership(user: string): Promise<void> {
     const platform = os.platform();
     try {
         const { stdout } = await execAsync(`id -nG ${user}`);
-        // In macOS, "everyone" is a special default group. Even if you remove the user from it,
-        // it either fails silenty or gets automatically re-added. Thus, we must ignore it here.
-        const MAC_OS_EVERYONE_GROUP = "everyone";
+        // In macOS, these are special default groups. Even if you remove the user
+        // from them, it either fails silently or they get automatically re-added.
+        // Thus, we must ignore them here.
+        const MAC_OS_DEFAULT_GROUPS = [
+            "everyone",
+            "localaccounts",
+            "com.apple.sharepoint.group.1",
+            "_lpoperator",
+        ];
 
         const groups = stdout
             .trim()
@@ -805,7 +811,10 @@ async function ensureExclusiveGroupMembership(user: string): Promise<void> {
             .filter(
                 (g) =>
                     g !== AGENT_GROUP_NAME &&
-                    !(platform === "darwin" && g === MAC_OS_EVERYONE_GROUP)
+                    !(
+                        platform === "darwin" &&
+                        MAC_OS_DEFAULT_GROUPS.includes(g)
+                    )
             );
         if (groups.length === 0) {
             console.log(
