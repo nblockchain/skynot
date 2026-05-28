@@ -1,6 +1,6 @@
-const createPreset = require('conventional-changelog-conventionalcommits').default;
+import createPreset from 'conventional-changelog-conventionalcommits';
 
-module.exports = createPreset({
+export default createPreset({
   types: [
     { type: 'feat', section: 'Features' },
     { type: 'fix', section: 'Bug Fixes' },
@@ -11,6 +11,6 @@ module.exports = createPreset({
     { type: 'CI', section: 'CI Changes' },
     { type: 'revert', section: 'Reverts' },
     { type: 'refactor', section: 'Internal Changes' },
-    { type: 'BREAKING', section: 'BREAKING CHANGES' },
+    { type: 'BREAKING', section: 'BREAKING CHANGES' }
   ]
 });
