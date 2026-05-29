@@ -30,7 +30,7 @@ TEMP_CHANGELOG=$(mktemp)
 # Since conventional-changelog automatically resolves the previous tag and generates the release notes
 # from that last tag up to HEAD under the name/version declared in package.json, we don't need any
 # temporary tagging or complex parsing hacks. It just works natively!
-npx --yes --package conventional-changelog-cli conventional-changelog --preset angular --release-count 1 > "$TEMP_CHANGELOG"
+NODE_OPTIONS="--import tsx" npx --no-install conventional-changelog --config changelog.config.ts --release-count 1 > "$TEMP_CHANGELOG"
 
 echo "--------------------------------------------------"
 cat "$TEMP_CHANGELOG"
