@@ -7,7 +7,8 @@ export default createPreset({
     { type: 'UX', section: 'Improvements' },
     { type: 'perf', section: 'Performance Optimizations' },
     { type: 'docs', section: 'Documentation Updates' },
-    { type: 'chore', section: 'Miscellaneous tasks' },
+    { type: 'chore', section: 'Miscellaneous/infrastructure tasks' },
+    { type: 'test', section: 'Test Coverage' }
     { type: 'CI', section: 'CI Changes' },
     { type: 'revert', section: 'Reverts' },
     { type: 'refactor', section: 'Internal Changes' },
