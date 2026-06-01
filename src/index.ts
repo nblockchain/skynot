@@ -640,22 +640,13 @@ set_dir_umask
     console.log(`${rcFile} updated with umask script.`);
 }
 
-function getExportPrefix(
-    apiKeyExport: Option<{ name: string; value: string }> = Nothing
-) {
-    return apiKeyExport instanceof Some
-        ? `export ${apiKeyExport.value.name}=${apiKeyExport.value.value} && `
-        : Empty.string();
-}
-
 async function createLauncherScript(
-    command: string,
-    scriptFileName: string,
+    piBinaryPath: string,
     apiKeyExport: Option<{ name: string; value: string }> = Nothing
 ): Promise<void> {
     const currentUserHome = os.homedir();
     const binDir = path.join(currentUserHome, "bin");
-    const scriptPath = path.join(binDir, scriptFileName);
+    const scriptPath = path.join(binDir, LAUNCHER_SCRIPT_FILENAME);
 
     console.log(`Creating launcher script at ${scriptPath}...`);
 
@@ -665,6 +656,11 @@ async function createLauncherScript(
     }
 
     const homeBase = CURRENT_OS === UnixBasedOS.MacOS ? "/Users" : "/home";
+
+    const exportPrefix =
+        apiKeyExport instanceof Some
+            ? `export ${apiKeyExport.value.name}=${apiKeyExport.value.value} && `
+            : Empty.string();
 
     // Write the launcher shell script with permission checks
     const scriptContent = `#!/bin/bash
@@ -734,7 +730,22 @@ if [ \${#EXPOSED_DIRS[@]} -gt 0 ]; then
   echo ""
 fi
 
-${command}
+# Proxy environment variables forwarded to the agent's sudo environment.
+# Extracted from context-lens to ensure MITM capture works correctly for the child process.
+# See: https://github.com/larsderidder/context-lens/blob/main/src/cli-utils.ts
+PROXY_ENV=""
+[ -n "$https_proxy" ] && PROXY_ENV="$PROXY_ENV export https_proxy=\\"$https_proxy\\" &&"
+[ -n "$HTTPS_PROXY" ] && PROXY_ENV="$PROXY_ENV export HTTPS_PROXY=\\"$HTTPS_PROXY\\" &&"
+[ -n "$NPM_CONFIG_HTTPS_PROXY" ] && PROXY_ENV="$PROXY_ENV export NPM_CONFIG_HTTPS_PROXY=\\"$NPM_CONFIG_HTTPS_PROXY\\" &&"
+[ -n "$WSS_PROXY" ] && PROXY_ENV="$PROXY_ENV export WSS_PROXY=\\"$WSS_PROXY\\" &&"
+[ -n "$NODE_USE_ENV_PROXY" ] && PROXY_ENV="$PROXY_ENV export NODE_USE_ENV_PROXY=\\"$NODE_USE_ENV_PROXY\\" &&"
+[ -n "$SSL_CERT_FILE" ] && PROXY_ENV="$PROXY_ENV export SSL_CERT_FILE=\\"$SSL_CERT_FILE\\" &&"
+[ -n "$NODE_EXTRA_CA_CERTS" ] && PROXY_ENV="$PROXY_ENV export NODE_EXTRA_CA_CERTS=\\"$NODE_EXTRA_CA_CERTS\\" &&"
+[ -n "$REQUESTS_CA_BUNDLE" ] && PROXY_ENV="$PROXY_ENV export REQUESTS_CA_BUNDLE=\\"$REQUESTS_CA_BUNDLE\\" &&"
+
+FULL_SUDO_CMD="${exportPrefix}\$PROXY_ENV export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${piBinaryPath} \$@"
+echo "Launching Pi with ${AGENT_USER} user (sudo is required to impersonate '${AGENT_USER}' user)..."
+exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"
 `;
     fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
     console.log("Launcher script created.");
@@ -758,47 +769,26 @@ ${command}
     }
 }
 
-async function createPiLauncherScript(
-    piBinaryPath: string,
-    apiKeyExport: Option<{ name: string; value: string }> = Nothing
-): Promise<void> {
-    const exportPrefix = getExportPrefix(apiKeyExport);
-    const command = `
-# Proxy environment variables forwarded to the agent's sudo environment.
-# Extracted from context-lens to ensure MITM capture works correctly for the child process.
-# See: https://github.com/larsderidder/context-lens/blob/main/src/cli-utils.ts
-PROXY_ENV=""
-[ -n "$https_proxy" ] && PROXY_ENV="$PROXY_ENV export https_proxy=\\"$https_proxy\\" &&"
-[ -n "$HTTPS_PROXY" ] && PROXY_ENV="$PROXY_ENV export HTTPS_PROXY=\\"$HTTPS_PROXY\\" &&"
-[ -n "$NPM_CONFIG_HTTPS_PROXY" ] && PROXY_ENV="$PROXY_ENV export NPM_CONFIG_HTTPS_PROXY=\\"$NPM_CONFIG_HTTPS_PROXY\\" &&"
-[ -n "$WSS_PROXY" ] && PROXY_ENV="$PROXY_ENV export WSS_PROXY=\\"$WSS_PROXY\\" &&"
-[ -n "$NODE_USE_ENV_PROXY" ] && PROXY_ENV="$PROXY_ENV export NODE_USE_ENV_PROXY=\\"$NODE_USE_ENV_PROXY\\" &&"
-[ -n "$SSL_CERT_FILE" ] && PROXY_ENV="$PROXY_ENV export SSL_CERT_FILE=\\"$SSL_CERT_FILE\\" &&"
-[ -n "$NODE_EXTRA_CA_CERTS" ] && PROXY_ENV="$PROXY_ENV export NODE_EXTRA_CA_CERTS=\\"$NODE_EXTRA_CA_CERTS\\" &&"
-[ -n "$REQUESTS_CA_BUNDLE" ] && PROXY_ENV="$PROXY_ENV export REQUESTS_CA_BUNDLE=\\"$REQUESTS_CA_BUNDLE\\" &&"
-
-FULL_SUDO_CMD="\${exportPrefix}\$PROXY_ENV export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${piBinaryPath} \$@"
-echo "Launching Pi with ${AGENT_USER} user (sudo is required to impersonate '${AGENT_USER}' user)..."
-exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"`;
-    await createLauncherScript(command, LAUNCHER_SCRIPT_FILENAME, apiKeyExport);
-}
-
 async function createContextLensLauncherScript(
-    contextLensDir: string,
-    apiKeyExport: Option<{ name: string; value: string }> = Nothing
+    contextLensDir: string
 ): Promise<void> {
+    const currentUserHome = os.homedir();
+    // assume that ~/bin exists because it was created by createLauncherScript function
+    const binDir = path.join(currentUserHome, "bin");
+    const scriptPath = path.join(binDir, CONTEXT_LENS_SCRIPT_FILENAME);
+
+    console.log(`Creating context-lens launcher script at ${scriptPath}...`);
+
     const cmd = `HOME=${agentUserHome} node ${contextLensDir}/dist/cli.js --mitm spi`;
-    const exportPrefix = getExportPrefix(apiKeyExport);
-    const command = `
+    const scriptContent = `#!/bin/bash
+
 echo "Launching Pi using context-lens wrapper..."
 echo "The context-lens UI is available at http://localhost:4041/"
 export PATH=$PATH:$HOME/bin
-${exportPrefix}cd "$CURRENT_DIR" && ${cmd} "$@"`;
-    await createLauncherScript(
-        command,
-        CONTEXT_LENS_SCRIPT_FILENAME,
-        apiKeyExport
-    );
+cd "$CURRENT_DIR" && ${cmd} "$@"`;
+
+    fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
+    console.log("Launcher script created.");
 }
 
 async function createMacOsGroup(
@@ -1130,7 +1120,7 @@ async function installContextLens(
         console.log("context-lens installed.");
     }
 
-    await createContextLensLauncherScript(contextLensDir, apiKeyExport);
+    await createContextLensLauncherScript(contextLensDir);
 }
 
 async function launchAgent(): Promise<void> {
@@ -1642,7 +1632,7 @@ async function main() {
         apiKeyExport = await configureAuth();
     }
 
-    await createPiLauncherScript(piBinaryPath, apiKeyExport);
+    await createLauncherScript(piBinaryPath, apiKeyExport);
 
     if (opts.contextLens) {
         await installContextLens(opts.update, apiKeyExport, opts.verbose);
