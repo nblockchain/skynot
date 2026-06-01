@@ -1119,11 +1119,10 @@ async function installContextLens(
         }
     } else {
         console.log("Installing context-lens...");
-        await runCommand(
-            "git",
-            ["clone", contextLensGithubRepoUrl],
-            commandOptions
-        );
+        await runAsAgentUser(`git clone ${contextLensGithubRepoUrl}`, verbose);
+        // mark context-lens dir as safe for git
+        const safeDirectoryCmd = `git config --global --add safe.directory '${contextLensDir}'`;
+        await execAsync(safeDirectoryCmd);
 
         await applyPatches();
 
