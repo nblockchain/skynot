@@ -782,10 +782,21 @@ async function createContextLensLauncherScript(
     const cmd = `HOME=${agentUserHome} node ${contextLensDir}/dist/cli.js --mitm spi`;
     const scriptContent = `#!/bin/bash
 
-echo "Launching Pi using context-lens wrapper..."
-echo "The context-lens UI is available at http://localhost:4041/"
+CONTEXT_LENS_PROXY_PORT="8080"
 export PATH=$PATH:$HOME/bin
-cd "$CURRENT_DIR" && ${cmd} "$@"`;
+cd "$CURRENT_DIR"
+
+# check if context-lens UI port is open
+if nc -z -w 1 localhost $CONTEXT_LENS_PROXY_PORT 2>/dev/null; then
+    echo "context-lens is already running; UI is available at http://localhost:4041/"
+    echo "Launching pi..."
+    spi "$@"
+else
+    echo "Launching Pi using context-lens wrapper..."
+    echo "The context-lens UI is available at http://localhost:4041/"
+    ${cmd} "$@"
+fi
+`;
 
     fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
     console.log("Launcher script created.");
