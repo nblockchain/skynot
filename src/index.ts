@@ -776,10 +776,16 @@ async function createContextLensLauncherScript(
     // assume that ~/bin exists because it was created by createLauncherScript function
     const binDir = path.join(currentUserHome, "bin");
     const scriptPath = path.join(binDir, CONTEXT_LENS_SCRIPT_FILENAME);
+    const certPath = path.join(
+        agentUserHome,
+        ".mitmproxy",
+        "mitmproxy-ca-cert.pem"
+    );
 
     console.log(`Creating context-lens launcher script at ${scriptPath}...`);
 
     const cmd = `HOME=${agentUserHome} node ${contextLensDir}/dist/cli.js --mitm spi`;
+    const contextLensReuseCmd = `https_proxy=http://localhost:8080 SSL_CERT_FILE=${certPath} NODE_EXTRA_CA_CERTS=${certPath} spi`;
     const scriptContent = `#!/bin/bash
 
 CONTEXT_LENS_PROXY_PORT="8080"
@@ -790,7 +796,7 @@ cd "$CURRENT_DIR"
 if nc -z -w 1 localhost $CONTEXT_LENS_PROXY_PORT 2>/dev/null; then
     echo "context-lens is already running; UI is available at http://localhost:4041/"
     echo "Launching pi..."
-    spi "$@"
+    ${contextLensReuseCmd} "$@"
 else
     echo "Launching Pi using context-lens wrapper..."
     echo "The context-lens UI is available at http://localhost:4041/"
