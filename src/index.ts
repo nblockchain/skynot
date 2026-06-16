@@ -1072,7 +1072,7 @@ async function installContextLens(
     );
 
     async function applyPatches() {
-        const patchesDir = path.join(__dirname, "..", "context-lens-patches");
+        const patchesDir = path.join(__dirname, "..", "patches", "context-lens");
         const patchFiles = fs
             .readdirSync(patchesDir)
             .filter((fileName) => fileName.endsWith(".patch"));

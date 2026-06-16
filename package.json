@@ -8,7 +8,7 @@
   },
   "files": [
     "dist/",
-    "context-lens-patches/"
+    "patches/context-lens/"
   ],
   "scripts": {
     "dist": "mkdir -p bin && echo '#!/usr/bin/env node' > bin/skynot && echo \"require('../dist/index.js');\" >> bin/skynot && chmod +x bin/skynot",
