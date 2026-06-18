@@ -466,21 +466,6 @@ async function checkWget(): Promise<void> {
     }
 }
 
-async function checkMitmProxy(): Promise<void> {
-    try {
-        await execAsync("which mitmproxy");
-    } catch (err) {
-        const installHint =
-            os.platform() == "darwin"
-                ? "e.g., 'brew install mitmproxy'"
-                : "e.g., 'apt install mitmproxy' on Debian/Ubuntu";
-        console.error(
-            `Error: mitmproxy not found. It is needed to use skynot with context-lens. Please install it (${installHint}).`
-        );
-        process.exit(1);
-    }
-}
-
 async function installAgentFromTarball(
     update: boolean,
     verbose?: boolean
@@ -763,32 +748,16 @@ async function createContextLensLauncherScript(
     // assume that ~/bin exists because it was created by createLauncherScript function
     const binDir = path.join(currentUserHome, "bin");
     const scriptPath = path.join(binDir, CONTEXT_LENS_SCRIPT_FILENAME);
-    const certPath = path.join(
-        agentUserHome,
-        ".mitmproxy",
-        "mitmproxy-ca-cert.pem"
-    );
 
     console.log(`Creating context-lens launcher script at ${scriptPath}...`);
 
-    const cmd = `HOME=${agentUserHome} node ${contextLensDir}/dist/cli.js --mitm spi`;
-    const contextLensReuseCmd = `https_proxy=http://localhost:8080 SSL_CERT_FILE=${certPath} NODE_EXTRA_CA_CERTS=${certPath} spi`;
+    const cmd = `HOME=${agentUserHome} UPSTREAM_OPENAI_URL=https://api.ppq.ai node ${contextLensDir}/dist/cli.js spi`;
+
     const scriptContent = `#!/bin/bash
 
-CONTEXT_LENS_PROXY_PORT="8080"
-export PATH=$PATH:$HOME/bin
-cd "$CURRENT_DIR"
-
-# check if context-lens UI port is open
-if nc -z -w 1 localhost $CONTEXT_LENS_PROXY_PORT 2>/dev/null; then
-    echo "context-lens is already running; UI is available at http://localhost:4041/"
-    echo "Launching pi..."
-    ${contextLensReuseCmd} "$@"
-else
-    echo "Launching Pi using context-lens wrapper..."
-    echo "The context-lens UI is available at http://localhost:4041/"
-    ${cmd} "$@"
-fi
+echo "Launching Pi using context-lens wrapper..."
+echo "The context-lens UI is available at http://localhost:4041/"
+${cmd} "$@"
 `;
 
     fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
@@ -1581,10 +1550,6 @@ async function main() {
     // wget is needed to download tarball
     if (!opts.npm) {
         await checkWget();
-    }
-    // mitmproxy is needed for context-lens
-    if (opts.contextLens) {
-        await checkMitmProxy();
     }
 
     await ensureAgentGroupExists();

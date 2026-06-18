@@ -81,4 +81,3 @@ Please note, `-u` would technically not wipe or reinstall extensions, as they no
 * NPM's `npx` (install with `brew install npm` or `apt install npm`)
 * git v2.46 or newer (required for wildcard support in `git config --global safe.directory`)
 * `setfacl` command in Linux (to setup ACLs; in Ubuntu this command is provided by the `acl` APT package)
-* mitmproxy for using with context-lens (`-c` or `--context-lens` option)
