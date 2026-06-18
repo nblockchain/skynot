@@ -626,12 +626,13 @@ set_dir_umask
 }
 
 async function createLauncherScript(
-    piBinaryPath: string,
+    command: string,
+    scriptFileName: string,
     apiKeyExport: Option<{ name: string; value: string }> = Nothing
 ): Promise<void> {
     const currentUserHome = os.homedir();
     const binDir = path.join(currentUserHome, "bin");
-    const scriptPath = path.join(binDir, LAUNCHER_SCRIPT_FILENAME);
+    const scriptPath = path.join(binDir, scriptFileName);
 
     console.log(`Creating launcher script at ${scriptPath}...`);
 
@@ -715,9 +716,7 @@ if [ \${#EXPOSED_DIRS[@]} -gt 0 ]; then
   echo ""
 fi
 
-FULL_SUDO_CMD="${exportPrefix} export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${piBinaryPath} \$@"
-echo "Launching Pi with ${AGENT_USER} user (sudo is required to impersonate '${AGENT_USER}' user)..."
-exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"
+${exportPrefix} ${command}
 `;
     fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
     console.log("Launcher script created.");
@@ -741,27 +740,31 @@ exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"
     }
 }
 
-async function createContextLensLauncherScript(
-    contextLensDir: string
+async function createPiLauncherScript(
+    piBinaryPath: string,
+    apiKeyExport: Option<{ name: string; value: string }> = Nothing
 ): Promise<void> {
-    const currentUserHome = os.homedir();
-    // assume that ~/bin exists because it was created by createLauncherScript function
-    const binDir = path.join(currentUserHome, "bin");
-    const scriptPath = path.join(binDir, CONTEXT_LENS_SCRIPT_FILENAME);
+    const command = `
+FULL_SUDO_CMD="export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${piBinaryPath} $@"
+echo "Launching Pi with ${AGENT_USER} user (sudo is required to impersonate '${AGENT_USER}' user)..."
+exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"`;
+    await createLauncherScript(command, LAUNCHER_SCRIPT_FILENAME, apiKeyExport);
+}
 
-    console.log(`Creating context-lens launcher script at ${scriptPath}...`);
-
-    const cmd = `HOME=${agentUserHome} UPSTREAM_OPENAI_URL=https://api.ppq.ai node ${contextLensDir}/dist/cli.js spi`;
-
-    const scriptContent = `#!/bin/bash
-
-echo "Launching Pi using context-lens wrapper..."
-echo "The context-lens UI is available at http://localhost:4041/"
-${cmd} "$@"
-`;
-
-    fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
-    console.log("Launcher script created.");
+async function createContextLensLauncherScript(
+    contextLensDir: string,
+    apiKeyExport: Option<{ name: string; value: string }> = Nothing
+): Promise<void> {
+    const cmd = `HOME=${agentUserHome} UPSTREAM_OPENAI_URL=https://api.ppq.ai node ${contextLensDir}/dist/cli.js pi`;
+    const command = `
+FULL_SUDO_CMD="export npm_config_prefix=$AGENT_USER_HOME/.npm-global && umask ${DEFAULT_UMASK} && cd $CURRENT_DIR && ${cmd} $@"
+echo "Launching Pi using context-lens warapper with ${AGENT_USER} user (sudo is required to impersonate '${AGENT_USER}' user)..."
+exec sudo -i -u ${AGENT_USER} bash -c "$FULL_SUDO_CMD"`;
+    await createLauncherScript(
+        command,
+        CONTEXT_LENS_SCRIPT_FILENAME,
+        apiKeyExport
+    );
 }
 
 async function createMacOsGroup(
@@ -1093,7 +1096,7 @@ async function installContextLens(
         console.log("context-lens installed.");
     }
 
-    await createContextLensLauncherScript(contextLensDir);
+    await createContextLensLauncherScript(contextLensDir, apiKeyExport);
 }
 
 async function launchAgent(): Promise<void> {
@@ -1601,7 +1604,7 @@ async function main() {
         apiKeyExport = await configureAuth();
     }
 
-    await createLauncherScript(piBinaryPath, apiKeyExport);
+    await createPiLauncherScript(piBinaryPath, apiKeyExport);
 
     if (opts.contextLens) {
         await installContextLens(opts.update, apiKeyExport, opts.verbose);
