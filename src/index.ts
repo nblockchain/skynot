@@ -967,7 +967,7 @@ async function setupWorkDir(): Promise<string> {
 }
 
 const RECOMMENDED_EXTENSIONS = [
-    "npm:awto-pi-lot",
+    "git:github.com/webwarrior-ws/awto-pi-lot",
 
     // BEWARE: this extension doesn't have NPM Provenance enabled yet:
     "npm:pi-wtf",
