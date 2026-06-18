@@ -6,6 +6,10 @@
   "bin": {
     "skynot": "bin/skynot"
   },
+  "files": [
+    "dist/",
+    "patches/context-lens/"
+  ],
   "scripts": {
     "dist": "mkdir -p bin && echo '#!/usr/bin/env node' > bin/skynot && echo \"require('../dist/index.js');\" >> bin/skynot && chmod +x bin/skynot",
     "build": "npm install && npx tsc && npm run dist",

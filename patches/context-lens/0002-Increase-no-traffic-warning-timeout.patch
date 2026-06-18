@@ -1,0 +1,26 @@
+From a1e0e854fa6a12db7cfcb32ef8a1c86fbaddab7d Mon Sep 17 00:00:00 2001
+From: Skynot Assistant <helper@skynot.ws>
+Date: Wed, 27 May 2026 14:10:00 +0200
+Subject: [PATCH] Increase no-traffic warning timeout to 45 seconds
+
+It might take a while for Pi to start up and make its first requests if some of
+your loaded extensions gather metadata or custom model details from APIs on start.
+---
+ src/cli.ts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/cli.ts b/src/cli.ts
+index c479f07..d471dfc 100644
+--- a/src/cli.ts
++++ b/src/cli.ts
+@@ -704,7 +704,7 @@ if (parsedArgs.commandName === "analyze") {
+         );
+         req.on("error", () => {});
+         req.on("timeout", () => req.destroy());
+-      }, 15_000);
++      }, 45_000);
+     }
+   }
+ 
+-- 
+2.54.0
